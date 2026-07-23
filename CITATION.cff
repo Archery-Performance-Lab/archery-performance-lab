@@ -1,0 +1,47 @@
+cff-version: 1.2.0
+
+title: "Archery Performance Lab"
+
+message: >
+  If you use Archery Performance Lab in your research,
+  publications or technical work, please cite the project
+  using the metadata provided in this file.
+
+type: software
+
+authors:
+  - family-names: "Franchini"
+    given-names: "Luigi"
+    affiliation: "Archery Performance Lab"
+
+repository-code: "https://github.com/Archery-Performance-Lab/archery-performance-lab"
+
+license: "Apache-2.0"
+
+abstract: >
+  Archery Performance Lab (APL) is an open-source research platform
+  dedicated to the scientific analysis of archery performance.
+  The project promotes transparency, reproducibility and
+  evidence-based methodologies for athletes, coaches,
+  researchers and sports scientists.
+
+keywords:
+  - archery
+  - sports science
+  - biomechanics
+  - performance analysis
+  - analytics
+  - open science
+  - research
+  - arrow tuning
+  - olympic archery
+
+version: "0.1.0"
+
+date-released: "2026-07-23"
+
+url: "https://github.com/Archery-Performance-Lab/archery-performance-lab"
+
+language: "en"
+
+license-url: "https://www.apache.org/licenses/LICENSE-2.0"
