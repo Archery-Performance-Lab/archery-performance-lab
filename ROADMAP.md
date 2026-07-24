@@ -1,3 +1,16 @@
+<p align="center">
+  <img src="assets/images/apl-logo.png" alt="Archery Performance Lab Logo" width="450">
+</p>
+
+<h1 align="center">
+  Archery Performance Lab
+</h1>
+
+<p align="center">
+  <strong>An Open Research Platform for Archery Performance Analytics</strong>
+</p>
+
+---
 # Roadmap
 
 This document describes the planned evolution of the **Archery Performance Lab (APL)** project.
