@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/images/apl-Logo.png" alt="Archery Performance Lab Logo" width="450">
+  <img src="assets/images/apl-logo.png" alt="Archery Performance Lab Logo" width="450">
 </p>
 
 <h1 align="center">
