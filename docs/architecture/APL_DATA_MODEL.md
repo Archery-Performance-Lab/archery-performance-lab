@@ -1,0 +1,437 @@
+# APL Data Model
+
+**Project:** Archery Performance Lab (APL)
+
+**Document ID:** APL-ARCH-002
+
+**Version:** 1.0.0
+
+**Status:** Approved
+
+**Authors:** Archery Performance Lab Team
+
+**Language:** English
+
+**License:** MIT
+
+**Last Updated:** 2026-07-29
+
+---
+
+# 1. Purpose
+
+This document defines the logical data model used by Archery Performance Lab (APL).
+
+The purpose of this model is to describe:
+
+- the entities managed by the platform;
+- the relationships between entities;
+- the ownership of information;
+- the lifecycle of data.
+
+The data model is independent of the database technology.
+
+It may be implemented using relational, document or graph databases without changing its logical structure.
+
+---
+
+# 2. Design Principles
+
+The APL Data Model follows these principles:
+
+- Entity-oriented
+- Technology independent
+- Modular
+- Extensible
+- Versioned
+- Traceable
+- Immutable where required
+
+Historical information shall never be overwritten.
+
+---
+
+# 3. High-Level Model
+
+```text
+Athlete
+│
+├── Equipment Setups
+│
+├── Arrow Setups
+│
+├── Training Sessions
+│
+├── Competitions
+│
+├── Videos
+│
+├── Assessments
+│
+└── Notes
+```
+
+Every entity owns its lifecycle.
+
+Relationships are managed by ACE.
+
+---
+
+# 4. Core Entities
+
+## Athlete
+
+Represents a registered athlete.
+
+Owns:
+
+- personal profile
+- equipment setups
+- arrow setups
+- sessions
+- competitions
+- assessments
+
+---
+
+## Equipment Setup
+
+Represents one complete equipment configuration.
+
+Contains references to:
+
+- riser
+- limbs
+- string
+- sight
+- clicker
+- arrow rest
+- button
+- stabilizers
+- accessories
+
+Components are referenced through the APL Component ID.
+
+---
+
+## Arrow Setup
+
+Represents one complete arrow configuration.
+
+Contains references to:
+
+- shaft
+- point
+- insert
+- pin
+- nock
+- vanes
+
+Stores:
+
+- measured weight
+- theoretical weight
+- FOC
+- balance point
+- quality control
+
+Components are referenced through the APL Component ID.
+
+---
+
+## Training Session
+
+Represents one training activity.
+
+Contains:
+
+- date
+- location
+- environment
+- equipment setup
+- arrow setup
+- ends
+- shots
+- notes
+
+---
+
+## Competition
+
+Represents an official competition.
+
+Contains:
+
+- event information
+- category
+- ranking
+- qualification
+- elimination rounds
+- final result
+
+Competition may reference external identifiers (e.g. IANSEO).
+
+---
+
+## End
+
+Represents one shooting end.
+
+Contains:
+
+- number
+- arrows
+- total score
+- duration
+
+---
+
+## Shot
+
+Represents one individual shot.
+
+Contains:
+
+- arrow number
+- score
+- impact position
+- timestamp
+- notes
+
+Future versions may include:
+
+- release quality
+- execution rating
+- synchronization with video
+
+---
+
+## Video
+
+Represents one recorded video.
+
+Contains:
+
+- recording metadata
+- synchronization
+- camera information
+- associated session
+
+Video analysis results are stored separately.
+
+---
+
+## Environment
+
+Represents environmental conditions.
+
+Contains:
+
+- temperature
+- humidity
+- pressure
+- wind
+- rain
+- light
+- altitude
+
+Environment may be shared by multiple sessions.
+
+---
+
+## Assessment
+
+Represents technical evaluations.
+
+Examples:
+
+- posture analysis
+- bow setup verification
+- tuning session
+- physical assessment
+
+---
+
+## Note
+
+Stores textual observations linked to any entity.
+
+---
+
+# 5. Relationships
+
+## Athlete
+
+1 → N Equipment Setups
+
+1 → N Arrow Setups
+
+1 → N Training Sessions
+
+1 → N Competitions
+
+1 → N Videos
+
+1 → N Assessments
+
+---
+
+## Equipment Setup
+
+1 → N Training Sessions
+
+1 → N Competitions
+
+---
+
+## Arrow Setup
+
+1 → N Training Sessions
+
+1 → N Competitions
+
+---
+
+## Training Session
+
+1 → N Ends
+
+---
+
+## End
+
+1 → N Shots
+
+---
+
+## Shot
+
+1 → 1 Arrow
+
+---
+
+## Training Session
+
+1 → 1 Environment
+
+---
+
+## Training Session
+
+0 → N Videos
+
+---
+
+# 6. Entity Identification
+
+Every entity owns:
+
+Internal UUID
+
+and
+
+Business Identifier
+
+Example
+
+Training Session
+
+UUID
+
+↓
+
+Business ID
+
+SESSION-20260729-001
+
+Physical components additionally own an APL Component ID as defined by APL-STD-001.
+
+---
+
+# 7. Versioning
+
+The following entities support versioning:
+
+- Athlete
+- Equipment Setup
+- Arrow Setup
+- Assessment
+
+Every modification generates a new revision.
+
+Historical revisions remain available.
+
+---
+
+# 8. Data Ownership
+
+Each entity owns only its own information.
+
+Example:
+
+Equipment Setup does not duplicate athlete information.
+
+Arrow Setup does not duplicate equipment information.
+
+Relationships are managed through references.
+
+---
+
+# 9. Data Integrity
+
+Every reference must be validated before storage.
+
+APL shall reject:
+
+- invalid Component IDs
+- orphan entities
+- invalid relationships
+- duplicated identifiers
+
+Validation is performed by ACE.
+
+---
+
+# 10. Knowledge Layer
+
+The logical model stores facts.
+
+Relationships between facts are managed by AKG.
+
+Technical knowledge is managed by AKB.
+
+Analytical results are generated by AIE.
+
+---
+
+# 11. Future Extensions
+
+The logical model allows new entities without modifying existing relationships.
+
+Future examples:
+
+- Wearable Devices
+- Electronic Targets
+- Sensors
+- Weather Services
+- Biomechanical Measurements
+- Health Monitoring (optional)
+- Equipment Maintenance
+
+---
+
+# 12. References
+
+APL_SYSTEM_ARCHITECTURE.md
+
+APL-STD-001 – Component Identification Standard
+
+Future references:
+
+APL-STD-002 – Arrow Database Standard
+
+APL-STD-003 – Equipment Database Standard
+
+---
+
+End of Document
