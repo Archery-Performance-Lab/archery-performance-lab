@@ -22,20 +22,20 @@
 
 The APL Manufacturer Database (AMD) is the official manufacturer domain of Archery Performance Lab.
 
-AMD centralizes information about manufacturers and their product catalogs.
+AMD provides the centralized repository for manufacturers and their product structures.
 
-Its objectives are:
+Its objectives are to:
 
-- provide a single source of manufacturer information
-- standardize manufacturer identification
-- organize product hierarchies
-- manage product lifecycle
-- support automatic component selection
-- eliminate duplicated manufacturer data
+- provide a single source of truth for manufacturers;
+- standardize manufacturer identification;
+- organize product hierarchies;
+- manage product lifecycle;
+- support guided component selection;
+- eliminate duplicated manufacturer information.
 
-AMD stores manufacturer information only.
+AMD stores manufacturer and product classification data only.
 
-Technical specifications are managed by the appropriate component domains.
+Technical specifications belong to the dedicated component domains (ADB, AED, AAD, etc.).
 
 ---
 
@@ -71,7 +71,7 @@ AMD
 
 Each entity owns its own data model.
 
-Relationships are managed by ACE.
+Relationships are managed exclusively by ACE.
 
 ---
 
@@ -97,30 +97,30 @@ Stores:
 - Official Name
 - Country
 - Headquarters
-- Website
+- Official Website
 - Logo
 - Description
 - Foundation Year (optional)
 - Status
 - Verification Status
 
-Manufacturer Code is unique.
+Examples of Manufacturer Codes:
 
-Example:
+- EA = Easton
+- WIN = Wiawis
+- SKY = Skylon
+- CAR = Carbon Express
+- PAN = Pandarus
 
-EA = Easton
-
-WIN = Wiawis
-
-SKY = Skylon
+Manufacturer Codes are unique.
 
 ---
 
 # 6. Brand Entity
 
-Some manufacturers own multiple brands.
+Some manufacturers own one or more commercial brands.
 
-The Brand entity stores:
+Each Brand stores:
 
 - UUID
 - Brand Name
@@ -128,7 +128,7 @@ The Brand entity stores:
 - Website
 - Status
 
-Example:
+Relationship:
 
 Manufacturer
 
@@ -144,7 +144,7 @@ Products
 
 # 7. Product Category
 
-Defines the main product classification.
+Defines the primary classification of products.
 
 Examples:
 
@@ -152,12 +152,15 @@ Examples:
 - Points
 - Inserts
 - Pins
+- Bushings
 - Nocks
 - Vanes
 - Risers
 - Limbs
 - Strings
 - Sights
+- Arrow Rests
+- Buttons
 - Stabilizers
 - Accessories
 
@@ -165,7 +168,7 @@ Examples:
 
 # 8. Product Family
 
-Represents a commercial product family.
+Represents a commercial family.
 
 Examples:
 
@@ -197,27 +200,23 @@ META DX
 
 NS-XP
 
-Families belong to one Product Category.
+Every Family belongs to one Category.
 
 ---
 
 # 9. Product Series
 
-Represents a specific generation or series within a family.
+Represents a specific series or generation.
 
 Examples:
 
-3.2
+- 3.2
+- 4.0
+- 25"
+- 27"
+- 68"
 
-4.0
-
-25"
-
-27"
-
-68"
-
-Series definitions depend on the product category.
+The interpretation depends on the product category.
 
 ---
 
@@ -227,19 +226,14 @@ Represents technical variations.
 
 Examples:
 
-Barrelled
+- Barrelled
+- Parallel
+- Foam
+- Wood
+- Left Hand
+- Right Hand
 
-Parallel
-
-Foam
-
-Wood
-
-Right Hand
-
-Left Hand
-
-Variants are category-dependent.
+Variants are category-specific.
 
 ---
 
@@ -257,20 +251,20 @@ Supported values:
 - Discontinued
 - Legacy
 
-Lifecycle information allows APL to:
+Lifecycle information enables APL to:
 
-- identify obsolete products
-- preserve historical configurations
-- warn users about discontinued components
-- maintain compatibility with historical data
+- identify obsolete products;
+- preserve historical configurations;
+- warn users when discontinued products are selected;
+- maintain compatibility with historical data.
 
-Lifecycle history shall be preserved.
+Lifecycle history shall always be preserved.
 
 ---
 
 # 12. Official Resources
 
-Stores references to manufacturer documentation.
+AMD stores references to official manufacturer documentation.
 
 Examples:
 
@@ -280,13 +274,13 @@ Examples:
 - Official Images
 - Product Pages
 
-Resources are versioned whenever possible.
+Whenever possible, resources are versioned.
 
 ---
 
 # 13. Product Hierarchy
 
-Products are organized using a hierarchical structure.
+Products are organized according to the following hierarchy.
 
 ```text
 Manufacturer
@@ -297,11 +291,52 @@ Manufacturer
 │   │   │   └── Variant
 ```
 
-This hierarchy is used throughout APL for guided selection.
+This hierarchy is used internally by APL to organize manufacturer catalogs.
 
 ---
 
-# 14. Automatic Selection
+# 14. Official Product Classification
+
+APL adopts a universal product classification hierarchy.
+
+Every physical component managed by APL shall follow the same classification model.
+
+```text
+Manufacturer
+        ↓
+Category
+        ↓
+Family
+        ↓
+Series
+        ↓
+Variant
+        ↓
+Technical Specification
+```
+
+This hierarchy is mandatory for every component domain, including but not limited to:
+
+- ADB – Arrow Database
+- AED – Equipment Database
+- AAD – Accessory Database
+- Future component domains
+
+The hierarchy guarantees:
+
+- consistent identification;
+- guided user selection;
+- standardized APIs;
+- interoperability between domains;
+- long-term scalability.
+
+No component domain may redefine this hierarchy.
+
+Only the **Technical Specification** level may vary according to the component category.
+
+---
+
+# 15. Automatic Selection
 
 AMD supports cascading selection.
 
@@ -315,29 +350,33 @@ Family
 Series
         ↓
 Variant
+        ↓
+Technical Specification
 ```
 
-After selection, ACE retrieves technical information from the appropriate domain.
+After the selection process, ACE retrieves technical information from the appropriate component domain.
 
-Example:
+Examples:
 
-Arrow → ADB
+Arrow components → ADB
 
-Equipment → AED
+Bow equipment → AED
+
+Athlete accessories → AAD
 
 ---
 
-# 15. Versioning
+# 16. Versioning
 
 Manufacturers and product structures support versioning.
 
-Historical data are never overwritten.
+Historical information shall never be overwritten.
 
-Changes create new revisions while preserving previous records.
+Every relevant modification creates a new revision while preserving previous versions.
 
 ---
 
-# 16. Verification Status
+# 17. Verification Status
 
 Supported values:
 
@@ -347,27 +386,28 @@ Supported values:
 - Experimental
 - Deprecated
 
-Verification history is preserved.
+Verification history shall always be preserved.
 
 ---
 
-# 17. Relationship with Other Domains
+# 18. Relationship with Other Domains
 
-AMD provides manufacturer information to:
+AMD provides manufacturer and product classification information to:
 
 - ADB
 - AED
+- AAD
 - APD
 - AKB
 - AKG
 
-AMD never exchanges data directly.
+AMD never communicates directly with other domains.
 
-All interactions are coordinated by ACE.
+All interactions are managed by ACE.
 
 ---
 
-# 18. References
+# 19. References
 
 APL_SYSTEM_ARCHITECTURE.md
 
@@ -378,6 +418,10 @@ APL-STD-001 – Component Identification Standard
 ADB.md
 
 AED.md
+
+Future:
+
+AAD.md
 
 ---
 
