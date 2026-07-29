@@ -1,0 +1,41 @@
+{
+  "name": "archery-performance-lab",
+  "version": "0.2.0-dev",
+  "private": true,
+  "description": "An Open Research Platform for Archery Performance Analytics",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Archery-Performance-Lab/archery-performance-lab.git"
+  },
+  "homepage": "https://github.com/Archery-Performance-Lab/archery-performance-lab",
+  "bugs": {
+    "url": "https://github.com/Archery-Performance-Lab/archery-performance-lab/issues"
+  },
+  "author": "Archery Performance Lab Contributors",
+  "keywords": [
+    "archery",
+    "performance",
+    "analytics",
+    "research",
+    "sports",
+    "typescript",
+    "nestjs",
+    "nextjs",
+    "open-source"
+  ],
+  "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "check": "turbo run check",
+    "format": "prettier --write .",
+    "clean": "turbo run clean"
+  }
+}
