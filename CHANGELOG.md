@@ -16,6 +16,8 @@ The format follows the principles of **Keep a Changelog** and the project adopts
 - Static Spine data model (`StaticSpineMeasurement`), explicitly recording the test standard (`ASTM-F2031` or `AMO-ATA`) alongside the deflection value, since the two give different readings for the same shaft.
 - `Plunger` (button) domain model, wired into `Bow`.
 - First real implementation of the `validations` module: `isValidStaticSpineMeasurement()`.
+- First automated tests for ACE, using Node's built-in test runner (`node:test`) — no third-party test framework dependency. Covers utils, all physics primitives, all 7 calculation engines, ballistics and validation, including a projectile-motion regression check against the closed-form solution.
+- `typescript` and `@types/node` declared as root devDependencies (previously undeclared anywhere in the repo).
 
 ### Changed
 
