@@ -1,3 +1,5 @@
+import type { Plunger } from "./button";
+
 /**
  * Olympic recurve bow configuration.
  */
@@ -24,5 +26,7 @@ export interface Bow {
     tillerMillimeters: number;
 
     stringStrands: number;
+
+    plunger: Plunger;
 
 }
