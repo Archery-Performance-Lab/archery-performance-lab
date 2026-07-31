@@ -12,5 +12,9 @@
     "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/**/*.test.js\"",
     "check": "tsc --noEmit",
     "clean": "rm -rf dist dist-test"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "@types/node": "^22.10.0"
   }
 }
