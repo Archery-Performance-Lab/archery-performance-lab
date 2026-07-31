@@ -4,3 +4,4 @@ export * from "./force";
 export * from "./motion";
 export * from "./energy";
 export * from "./momentum";
+export * from "./trajectory";
