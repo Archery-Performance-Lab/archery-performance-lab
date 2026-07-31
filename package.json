@@ -24,10 +24,10 @@
     "nextjs",
     "open-source"
   ],
-  "packageManager": "pnpm@10.0.0",
+  "packageManager": "pnpm@11.18.0",
   "engines": {
-    "node": ">=22.0.0",
-    "pnpm": ">=10.0.0"
+    "node": ">=26.0.0",
+    "pnpm": ">=11.18.0"
   },
   "scripts": {
     "dev": "turbo run dev",

@@ -1,0 +1,16 @@
+{
+  "name": "@apl/ace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Archery Calculation Engine",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "echo \"No lint configured yet\"",
+    "test": "echo \"No tests yet\"",
+    "check": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  }
+}
