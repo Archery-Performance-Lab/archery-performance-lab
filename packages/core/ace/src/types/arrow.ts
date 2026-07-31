@@ -1,3 +1,5 @@
+import type { StaticSpineMeasurement } from "./spine";
+
 /**
  * Arrow description used by the Archery Calculation Engine.
  */
@@ -7,7 +9,7 @@ export interface Arrow {
 
     model: string;
 
-    spine: number;
+    staticSpine: StaticSpineMeasurement;
 
     lengthMillimeters: number;
 

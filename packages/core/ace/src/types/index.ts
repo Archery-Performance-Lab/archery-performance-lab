@@ -4,3 +4,4 @@ export * from "./bow";
 export * from "./environment";
 export * from "./session";
 export * from "./shot";
+export * from "./spine";
