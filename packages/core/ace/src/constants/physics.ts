@@ -13,3 +13,5 @@ export const GRAM_TO_KILOGRAM = 0.001;
 export const INCH_TO_METER = 0.0254;
 
 export const MM_TO_METER = 0.001;
+
+export const POUND_FORCE_TO_NEWTON = 4.4482216152605;
