@@ -25,3 +25,27 @@ export function dragForce(
         frontalAreaSquareMeters
     );
 }
+
+/**
+ * Drag Deceleration Constant (1/m)
+ *
+ * k = (airDensity * dragCoefficient * frontalArea) / (2 * mass)
+ *
+ * Rewrites dragForce = mass * deceleration = 0.5 * airDensity * v^2 *
+ * dragCoefficient * frontalArea into deceleration = k * v^2, isolating
+ * the single constant needed to solve the quadratic-drag equation of
+ * motion (see physics/motion.ts timeOfFlightWithDrag()).
+ */
+export function dragDecelerationConstant(
+    dragCoefficient: number,
+    frontalAreaSquareMeters: number,
+    massKilograms: number,
+    airDensityKilogramsPerCubicMeter: number = AIR_DENSITY
+): number {
+    return (
+        (airDensityKilogramsPerCubicMeter *
+            dragCoefficient *
+            frontalAreaSquareMeters) /
+        (2 * massKilograms)
+    );
+}
