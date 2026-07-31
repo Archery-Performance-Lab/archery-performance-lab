@@ -26,11 +26,21 @@ import {
  *                     solved for velocity)
  *
  * bowEfficiency is NOT a hard-coded constant: it must be supplied by
- * the caller because it depends on the specific bow (riser mass, limb
- * design, brace height, string material...). Published references for
- * recurve bows commonly cite a range of roughly 0.65-0.80. Using a
- * value outside that range should be backed by a measured chronograph
- * calibration when available.
+ * the caller because it depends on the specific bow (limb material and
+ * design, riser mass, brace height, string material...) AND on the
+ * arrow mass used for the estimate: a heavier arrow stays in contact
+ * with the string longer during the power stroke, giving the limbs
+ * more time to transfer energy before it is lost to residual vibration,
+ * so heavier arrows yield measurably higher efficiency on the same bow.
+ *
+ * Reference values (Kooi, "On the mechanics of the modern
+ * working-recurve bow"; see also comparative limb efficiency testing):
+ * - Traditional/older recurve limb design: roughly 0.65-0.80
+ * - Modern high-performance recurve limbs (e.g. carbon/foam core):
+ *   roughly 0.80-0.85 with medium-to-heavy arrows, and can exceed 0.85
+ *   with heavy arrows specifically
+ * A value should ideally be backed by a measured chronograph
+ * calibration when available, rather than assumed.
  *
  * Limitation: the triangular force-draw approximation is reasonable
  * for recurve/traditional bows without let-off. It is not appropriate
