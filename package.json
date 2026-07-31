@@ -37,5 +37,9 @@
     "check": "turbo run check",
     "format": "prettier --write .",
     "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "@types/node": "^22.10.0"
   }
 }

@@ -9,8 +9,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "lint": "echo \"No lint configured yet\"",
-    "test": "echo \"No tests yet\"",
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/**/*.test.js\"",
     "check": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist dist-test"
   }
 }
