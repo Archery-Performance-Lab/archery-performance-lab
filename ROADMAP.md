@@ -63,54 +63,54 @@ Deliverables:
 
 ## v0.2.0 — Manifesto
 
-**Status:** Planned
+**Status:** Content complete (not yet tagged as a release)
 
 Objectives:
 
-- Define the scientific philosophy of APL.
-- Establish analytical principles.
-- Describe research methodology.
-- Formalize project terminology.
+- [x] Define the scientific philosophy of APL — `MANIFESTO.md`.
+- [x] Establish analytical principles — `MANIFESTO.md`, `AAP_ARCHITECTURE_PRINCIPLES.md`.
+- [x] Describe research methodology — `MANIFESTO.md`.
+- [x] Formalize project terminology — `APL-STD-001-Component-ID.md` and per-domain docs (ADB, AED, AKB, AKG, AMD, APD).
 
 ---
 
 ## v0.3.0 — Domain Model
 
-**Status:** Planned
+**Status:** In progress
 
 Objectives:
 
-- Identify all core entities.
-- Define relationships between entities.
-- Establish domain terminology.
-- Document business rules.
+- [x] Identify all core entities — `Archer`, `Bow`, `Arrow`, `Environment`, `Session`, `Shot`, `Plunger`, `StaticSpineMeasurement` (`packages/core/ace/src/types`).
+- [x] Define relationships between entities — e.g. `Session` composes `Archer`/`Bow`/`Arrow`/`Environment`/`Shot[]`; `Bow` composes `Plunger`; `Arrow` composes `StaticSpineMeasurement`.
+- [ ] Establish domain terminology — currently only inline code documentation, no standalone glossary.
+- [ ] Document business rules — ADRs cover some (e.g. ADR-003 Raw vs Derived Data), but no consolidated business-rules document yet.
 
 ---
 
 ## v0.4.0 — Data Model
 
-**Status:** Planned
+**Status:** In progress
 
 Objectives:
 
-- Define data structures.
-- Specify measured, calculated and validated data.
-- Standardize data storage.
-- Prepare interoperability.
+- [x] Define data structures — TypeScript domain types (see v0.3.0).
+- [x] Specify measured, calculated and validated data — ADR-003 (Raw vs Derived Data) plus the Input/Result pattern used by every ACE calculation engine.
+- [ ] Standardize data storage — no persistence layer yet.
+- [ ] Prepare interoperability — no API layer yet (`apps/api` is not started).
 
 ---
 
 ## v0.5.0 — Arrow Tuning Module
 
-**Status:** Planned
+**Status:** In progress
 
 Objectives:
 
-- Arrow configuration.
-- FOC analysis.
-- Dynamic spine analysis.
-- Performance calculations.
-- Validation workflow.
+- [x] Arrow configuration — `Arrow` type, `calculateArrowMass()`.
+- [x] FOC analysis — `calculateFrontOfCenter()`.
+- [x] Dynamic spine analysis — modeled as spine indexing + plunger tuning rather than a calculated formula (`StaticSpineMeasurement`, `calculateRecommendedPlungerSpringTension()`); see `CHANGELOG.md` [Unreleased] for the reasoning.
+- [x] Performance calculations — Kinetic Energy, Momentum, Arrow Speed estimation, Time of Flight, Ballistics (`packages/core/ace/src/calculations`, `packages/core/ace/src/ballistics`).
+- [ ] Validation workflow — only `isValidStaticSpineMeasurement()` exists so far; `Bow`, `Archer`, `Session` and `Shot` have no validation yet.
 
 ---
 

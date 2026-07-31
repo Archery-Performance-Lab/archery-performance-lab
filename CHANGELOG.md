@@ -17,7 +17,7 @@ The format follows the principles of **Keep a Changelog** and the project adopts
 - `Plunger` (button) domain model, wired into `Bow`.
 - First real implementation of the `validations` module: `isValidStaticSpineMeasurement()`.
 - First automated tests for ACE, using Node's built-in test runner (`node:test`) — no third-party test framework dependency. Covers utils, all physics primitives, all 7 calculation engines, ballistics and validation, including a projectile-motion regression check against the closed-form solution.
-- `typescript` and `@types/node` declared as root devDependencies (previously undeclared anywhere in the repo).
+- `typescript` and `@types/node` declared as devDependencies of `@apl/ace` (previously undeclared anywhere in the repo — `tsc` only worked by accident wherever a global install happened to exist). `turbo` and `prettier` declared as root devDependencies, for the same reason: both were already referenced by root scripts (`turbo run ...`, `prettier --write .`) but never installable from a clean checkout.
 
 ### Changed
 
@@ -26,6 +26,9 @@ The format follows the principles of **Keep a Changelog** and the project adopts
 ### Fixed
 
 - ACE package failed to build: wrong relative path in `tsconfig.json`'s `extends`, a stale `./calculatics` import (folder had been renamed to `./calculations`), a duplicate `GRAVITY` export causing an ambiguous-export error, empty `physics` stub modules (`drag.ts`, `force.ts`, `motion.ts`) breaking `export *`, and `constants/air.ts` re-exporting itself instead of defining `AIR_DENSITY`.
+- `pnpm test` failed on a clean checkout even after `pnpm install`, in two stages: (1) `turbo`/`typescript`/`@types/node`/`prettier` were undeclared, so pnpm had nothing to install; (2) once declared, `@types/node` still wasn't picked up inside `packages/core/ace` because pnpm workspaces don't hoist a package's dependencies to its siblings — each workspace package must declare what it uses. Fixed by declaring `typescript`/`@types/node` directly on `@apl/ace`, and explicitly setting `"types": ["node"]` in its test tsconfig rather than relying on automatic `@types` discovery.
+- `pnpm-lock.yaml` was a near-empty skeleton (no dependency had ever been resolved with real registry access); replaced with a fully resolved lockfile.
+- `.turbo/` (Turborepo's local cache directory) was not covered by `.gitignore`.
 
 ---
 
@@ -104,7 +107,11 @@ Security-related improvements.
 
 | Version | Status | Description |
 |----------|--------|-------------|
-| 0.1.0 | Current | Repository Foundation |
+| 0.1.0 | Released | Repository Foundation |
+| 0.2.0 | Content complete | Manifesto |
+| 0.3.0 | In progress | Domain Model |
+| 0.4.0 | In progress | Data Model |
+| 0.5.0 | In progress | Arrow Tuning Module |
 
 ---
 
