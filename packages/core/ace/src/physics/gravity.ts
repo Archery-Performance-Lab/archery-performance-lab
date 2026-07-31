@@ -1,5 +1,14 @@
-/**
- * Standard gravitational acceleration.
- */
+import { GRAVITY } from "../constants";
+import { force } from "./force";
 
-export const GRAVITY = 9.80665;
+/**
+ * Weight Force
+ *
+ * weightForce = mass * GRAVITY
+ *
+ * The gravitational force acting on a mass at standard gravity.
+ * See ../constants/gravity.ts for the GRAVITY constant.
+ */
+export function calculateWeightForce(massKilograms: number): number {
+    return force(massKilograms, GRAVITY);
+}
