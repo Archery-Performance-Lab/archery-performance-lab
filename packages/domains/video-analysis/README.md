@@ -5,35 +5,49 @@ Video Analysis Engine — corresponds to **M06 Video Analysis** in
 
 ## Status
 
-Scaffolding only. Domain types and one pure calculation
-(`calculatePhaseDurations`) exist and are tested. Pose estimation
-(actually detecting body landmarks from video frames) is **not**
-implemented yet.
+Domain types, one pure calculation (`calculatePhaseDurations`), and a
+pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`)
+exist. Video-to-frame extraction (e.g. via ffmpeg) and shooting-phase
+detection from pose data are **not** implemented yet.
 
-## Why pose estimation isn't here yet
-
-Unlike ACE's physics/calculation engines, pose estimation isn't a
-formula that can be written from first principles — it requires a
-trained machine learning model. The chosen approach is
-TensorFlow.js pose detection (`@tensorflow-models/pose-detection`,
-BlazePose model, `tfjs` runtime), running on `@tensorflow/tfjs-node`.
-
-The development sandbox this scaffolding was built in has no access to
-the npm registry, so these packages could not be installed or verified
-here. To continue:
+The pose-estimation wrapper is type-checked and written against the
+real `@tensorflow-models/pose-detection` API (its `.d.ts` files were
+read directly, not guessed from memory), but has **not** been run
+end-to-end: `@tensorflow/tfjs-node` ships a platform-specific native
+binary, built for whichever machine ran `pnpm install` (your Mac).
+It cannot load on a different platform (confirmed here — the dev
+sandbox this was built in is Linux, and loading the Mac-built binary
+fails with "invalid ELF header"). Run the real verification yourself:
 
 ```
-pnpm add @tensorflow/tfjs-node @tensorflow-models/pose-detection --filter @apl/video-analysis
+cd packages/domains/video-analysis
+node scripts/verify-pose-detector.cjs
 ```
 
-Once installed, the pose-estimation wrapper can be written and
-verified against the real library API (rather than guessed).
+This creates a real BlazePose detector, runs it on a synthetic image,
+and confirms the pipeline doesn't crash (not that detection is
+accurate — the synthetic image has no real person in it). It needs
+network access the first time, since model weights are downloaded on
+demand. It's a manual script, not part of `pnpm test`, since it's slow
+and network-dependent — see the comment at the top of the script.
+
+## Next steps
+
+- Frame extraction from video files (needs a decision: ffmpeg via a
+  wrapper library, or something else).
+- Wiring `estimatePoseFrame()` output into shooting-phase detection —
+  this is where the `ShootingPhase` taxonomy in `types/phase.ts`
+  actually gets used, so it's worth settling that taxonomy first.
 
 ## Domain model
 
 - `types/pose.ts` — `PoseKeypoint`, `PoseFrame`. `PoseKeypoint.name` is
-  a plain string, not a fixed union, until a specific model's exact
-  landmark set is wired in and confirmed.
+  a plain string, not a fixed union. In practice, BlazePose's `tfjs`
+  runtime always sets a name from its fixed 33-landmark list (verified
+  by reading its detector source), but the underlying library types
+  the field as optional since it's shared across models, so
+  `estimatePoseFrame()` falls back to a positional placeholder if it's
+  ever missing rather than throwing.
 - `types/phase.ts` — `ShootingPhase`, a first-pass six-phase taxonomy
   (Stance, Nocking, Drawing, Anchor, Release, FollowThrough). This is
   a starting point for discussion, not a settled decision — it should
@@ -43,3 +57,6 @@ verified against the real library API (rather than guessed).
   for one shot's video.
 - `calculations/timing` — `calculatePhaseDurations()`, pure
   post-processing over already-detected phase segments.
+- `pose-estimation/` — `createPoseDetector()` (BlazePose, `tfjs`
+  runtime), `estimatePoseFrame()` (runs the detector on one already
+  decoded frame and converts the result to `PoseFrame`).
