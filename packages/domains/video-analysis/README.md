@@ -5,10 +5,11 @@ Video Analysis Engine — corresponds to **M06 Video Analysis** in
 
 ## Status
 
-Domain types, one pure calculation (`calculatePhaseDurations`), and a
-pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`)
-exist. Video-to-frame extraction (e.g. via ffmpeg) and shooting-phase
-detection from pose data are **not** implemented yet.
+Domain types, one pure calculation (`calculatePhaseDurations`), a
+pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`),
+and a frame-extraction module (`readVideoMetadata`,
+`extractFramesFromVideo`) exist. Shooting-phase detection from pose
+data is **not** implemented yet.
 
 The pose-estimation wrapper is type-checked and written against the
 real `@tensorflow-models/pose-detection` API (its `.d.ts` files were
@@ -51,11 +52,11 @@ the script.
 
 ## Next steps
 
-- Frame extraction from video files (needs a decision: ffmpeg via a
-  wrapper library, or something else).
-- Wiring `estimatePoseFrame()` output into shooting-phase detection —
-  this is where the `ShootingPhase` taxonomy in `types/phase.ts`
-  actually gets used, so it's worth settling that taxonomy first.
+- Wiring `extractFramesFromVideo()`'s output into
+  `estimatePoseFrame()`, and that combined output into shooting-phase
+  detection — this is where the `ShootingPhase` taxonomy in
+  `types/phase.ts` actually gets used, so it's worth settling that
+  taxonomy first.
 
 ## Domain model
 
@@ -78,3 +79,26 @@ the script.
 - `pose-estimation/` — `createPoseDetector()` (BlazePose, `tfjs`
   runtime), `estimatePoseFrame()` (runs the detector on one already
   decoded frame and converts the result to `PoseFrame`).
+- `frame-extraction/` — `readVideoMetadata()` (dimensions, frame rate
+  and duration, read via ffprobe), `extractFramesFromVideo()` (an
+  async generator yielding one decoded RGB pixel tensor per extracted
+  frame). Uses `ffmpeg-static`/`ffprobe-static` (bundled binaries, no
+  system install required) via `fluent-ffmpeg`. ffmpeg is asked to
+  output raw `rgb24` pixel data directly, rather than writing
+  individual image files to disk, so each frame's bytes convert
+  straight into a `tf.tensor3d()` with no separate image-decoding
+  library — this package deliberately does not depend on
+  `@tensorflow/tfjs-node` (see the pose-estimation section above), so
+  `tf.node.decodeImage()` is not available. Verify with:
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/verify-frame-extraction.cjs
+  ```
+
+  This generates a tiny synthetic test video with ffmpeg itself (no
+  video file needed), extracts frames from it, and checks the tensor
+  shapes and frame count look right. Like the pose-detector script,
+  it's manual (not part of `pnpm test`) since it spawns real,
+  platform-specific binaries.
