@@ -125,7 +125,7 @@ territory, once `apps/web` exists) is in scope yet.
 Objectives:
 
 - [x] Shot sequence analysis — domain types in place (`ShotSequenceAnalysis`, `PoseFrame`, `PoseKeypoint`); pose estimation wrapper (`createPoseDetector`, `estimatePoseFrame`) built against the real `@tensorflow-models/pose-detection` BlazePose API and verified end-to-end on the WASM backend; frame extraction (`readVideoMetadata`, `extractFramesFromVideo`) via `ffmpeg-static`/`ffprobe-static` (`packages/domains/video-analysis/src/frame-extraction`, `src/pose-estimation`). Not yet wired together into one end-to-end "video file in, pose sequence out" call.
-- [ ] Shooting phase detection — a first-pass six-phase taxonomy exists (`ShootingPhase` in `types/phase.ts`: Stance, Nocking, Drawing, Anchor, Release, FollowThrough), explicitly flagged as needing coaching-methodology review before it drives real detection logic. No detection algorithm yet — depends on frame extraction above.
+- [ ] Shooting phase detection — `ShootingPhase` taxonomy (`types/phase.ts`) reviewed and corrected against real coaching methodology (Tommaso Franchini, FITARCO tessera 151218): Stance, PreDraw, Drawing, Anchor, Aiming, Expansion, Release, FollowThrough. Release detection needs the video's audio track (clicker sound) as the primary signal, falling back to a string-arm velocity spike — no detection algorithm implemented yet.
 - [x] Timing analysis — `calculatePhaseDurations()` (`packages/domains/video-analysis/src/calculations/timing`), pure post-processing over phase segments.
 - [ ] Technical performance metrics.
 
