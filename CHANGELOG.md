@@ -23,6 +23,8 @@ The format follows the principles of **Keep a Changelog** and the project adopts
 - Frame extraction from video files: `readVideoMetadata()` (dimensions, frame rate, duration via ffprobe) and `extractFramesFromVideo()` (an async generator yielding one decoded RGB pixel tensor per frame), using `ffmpeg-static`/`ffprobe-static` via `fluent-ffmpeg` — closes the missing input side of `estimatePoseFrame()`.
 - `biomechanics` module: pure geometry/kinematics functions over `PoseKeypoint`s (`distanceBetweenKeypoints`, `angleAtJointDegrees`, `perpendicularDistanceFromLinePixels`, `keypointVelocityPixelsPerSecond`) — the signal-computation building blocks real phase detection will need, fully unit-tested.
 - `shot-analysis/analyzeShotVideo()`: wires `extractFramesFromVideo()` and `estimatePoseFrame()` into one call yielding a pose sequence per video, with correct tensor disposal.
+- `scripts/build-calibration-dataset.cjs` and `scripts/detect-phases.cjs`: batch-process every video in a (git-ignored, external) calibration folder, writing per-frame biomechanics signals to CSV and, separately, printing detected phase segments for comparison against the real footage.
+- `phase-detection/detectShootingPhases()`: a first-pass, provisional detector for Anchor, Release and FollowThrough, using a sustained (not single-frame) rise in draw-side wrist velocity, normalized by shoulder width. Thresholds derived from one real calibration video (Tommaso Franchini) — a real number, not a guess, but a sample size of one. Stance, PreDraw, Drawing, Aiming and Expansion are not detected yet.
 
 ### Changed
 

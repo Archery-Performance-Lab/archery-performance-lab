@@ -9,15 +9,13 @@ Domain types, one pure calculation (`calculatePhaseDurations`), a
 pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`), a
 frame-extraction module (`readVideoMetadata`,
 `extractFramesFromVideo`), the two wired together
-(`shot-analysis/analyzeShotVideo`), and a `biomechanics` module of
-pure geometric/kinematic signal functions (distance, angle, velocity
-between keypoints) all exist. Shooting-phase detection itself — using
-those biomechanical signals to actually segment a pose sequence into
-phases — is **not** implemented yet: it needs numeric thresholds
-(how much wrist velocity counts as a Release spike, how close a
-distance counts as "stabilized" at Anchor, etc.) that cannot be
-responsibly invented without real, labeled footage to calibrate
-against — see the note in `shot-analysis/` below.
+(`shot-analysis/analyzeShotVideo`), a `biomechanics` module of pure
+geometric/kinematic signal functions (distance, angle, velocity
+between keypoints), and a **first-pass, provisional**
+`phase-detection/detectShootingPhases()` all exist. It detects Anchor,
+Release and FollowThrough from real calibration footage; Stance,
+PreDraw, Drawing, Aiming and Expansion are not detected yet — see
+`phase-detection/` below for exactly why and what each would need.
 
 The pose-estimation wrapper is type-checked and written against the
 real `@tensorflow-models/pose-detection` API (its `.d.ts` files were
@@ -60,11 +58,14 @@ the script.
 
 ## Next steps
 
-- Actual phase-boundary detection: consuming `biomechanics/`'s signal
-  functions (and `shot-analysis/analyzeShotVideo()`'s pose sequence)
-  to segment a shot into `ShootingPhaseSegment`s. Blocked on getting
-  real, labeled footage to calibrate detection thresholds against —
-  see `shot-analysis/` below.
+- Validate and refine `phase-detection/detectShootingPhases()` against
+  more real footage (`scripts/detect-phases.cjs` prints its output in
+  seconds for exactly this) — thresholds were set from one video and
+  need a coach confirming the detected segments against many more
+  real shots before they can be trusted.
+- Detect Stance, PreDraw, Drawing, Aiming and Expansion — see
+  `phase-detection/` below for why they're not detected yet and what
+  signals each would likely need.
 - An `ArcherHandedness` (or similar) concept: which BlazePose keypoint
   is the "string arm" vs. "bow arm" depends on whether the archer is
   right- or left-handed, and on which side of the archer the camera
@@ -81,11 +82,11 @@ the script.
   the field as optional since it's shared across models, so
   `estimatePoseFrame()` falls back to a positional placeholder if it's
   ever missing rather than throwing.
-- `types/phase.ts` — `ShootingPhase`, a first-pass six-phase taxonomy
-  (Stance, Nocking, Drawing, Anchor, Release, FollowThrough). This is
-  a starting point for discussion, not a settled decision — it should
-  be reviewed against real coaching methodology before it drives any
-  phase-detection logic.
+- `types/phase.ts` — `ShootingPhase` (Stance, PreDraw, Drawing,
+  Anchor, Aiming, Expansion, Release, FollowThrough), reviewed and
+  corrected against real coaching methodology (Tommaso Franchini,
+  FITARCO tessera 151218) — see the type's own doc comment for what
+  each phase means and how it should be detected.
 - `types/shot-sequence.ts` — `ShotSequenceAnalysis`, the full result
   for one shot's video.
 - `calculations/timing` — `calculatePhaseDurations()`, pure
@@ -161,3 +162,35 @@ the script.
   this repository: it holds real, potentially identifiable video of a
   minor athlete, which must never end up in a public open-source
   repository, and video files don't belong in a git repo regardless.
+- `phase-detection/` — `detectShootingPhases()`, a **first-pass,
+  provisional** detector, not a finished one. Detects Anchor, Release
+  and FollowThrough by finding a sustained rise in the draw-side
+  wrist's velocity (not a single-frame spike — real calibration data
+  showed the actual Release ramps over several consecutive frames,
+  and that a single video's *global* peak velocity / closest approach
+  can pick out the wrong moment, e.g. an early, non-sustained close
+  approach to the face that wasn't really Anchor). Its thresholds
+  (`PhaseDetectionOptions`, all with defaults) were derived from
+  exactly one usable calibration video — real numbers, but a sample
+  size of one, not a validated model. Stance, PreDraw, Drawing, Aiming
+  and Expansion are not detected: Stance/PreDraw happen before any
+  string-hand motion the current signals capture (would need
+  something like bow-arm elevation angle instead); Aiming and
+  Expansion both happen with the wrist already near the face, making
+  them indistinguishable from Anchor using only wrist distance/
+  velocity — Expansion in particular is driven by scapula rotation,
+  which these signals don't capture, per the coach's description in
+  `types/phase.ts`. Validate with:
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/detect-phases.cjs right
+  ```
+
+  This prints detected segments in seconds for every video in the
+  calibration folder — scrub to those timestamps in the real videos
+  and confirm whether they match. Disagreements should turn into
+  threshold/logic changes in `phase-detection/detect.ts`, which is
+  meant to keep improving as more real footage gets checked against
+  it, not to be treated as finished.
