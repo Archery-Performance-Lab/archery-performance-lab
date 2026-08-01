@@ -1,4 +1,4 @@
-import type { Tensor3D } from "@tensorflow/tfjs-node";
+import type { Tensor3D } from "@tensorflow/tfjs";
 import type { PoseDetector } from "@tensorflow-models/pose-detection";
 import type { PoseFrame, PoseKeypoint } from "../types";
 
@@ -6,10 +6,12 @@ import type { PoseFrame, PoseKeypoint } from "../types";
  * Runs pose estimation on a single already-decoded frame and converts
  * the result into APL's PoseFrame domain type.
  *
- * `frame` must already be a decoded Tensor3D (e.g. via
- * tf.node.decodeImage() on a JPEG/PNG buffer). Extracting frames from
- * a video file (e.g. with ffmpeg) is a separate, not-yet-implemented
- * concern — see README.md.
+ * `frame` must already be a decoded Tensor3D — a [height, width,
+ * channels] pixel tensor, e.g. from tf.node.decodeImage() (if
+ * @tensorflow/tfjs-node is added later purely for image decoding) or
+ * any other JPEG/PNG decoder wired up to produce a tensor. Extracting
+ * frames from a video file (e.g. with ffmpeg) is a separate,
+ * not-yet-implemented concern — see README.md.
  *
  * If the underlying library ever omits `name` on a keypoint
  * (confirmed, by reading its BlazePose/tfjs implementation, to always

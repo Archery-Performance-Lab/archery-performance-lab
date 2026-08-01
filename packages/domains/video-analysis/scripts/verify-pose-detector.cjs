@@ -9,20 +9,31 @@
 //
 // Run from packages/domains/video-analysis:
 //   node scripts/verify-pose-detector.cjs
+//
+// Backend: WASM (@tensorflow/tfjs-backend-wasm), not the native
+// @tensorflow/tfjs-node bindings. tfjs-node's native "tensorflow"
+// backend does not implement several image-preprocessing kernels
+// BlazePose needs (Transform, RotateWithOffset, FlipLeftRight) — a
+// long-standing, unresolved upstream gap. The WASM backend implements
+// the full kernel set and has no compiled native addon, so it is not
+// tied to the OS/CPU architecture it was installed on either.
+//
+// No setWasmPaths() call is needed: this package's npm "main" entry
+// is a Node-specific Emscripten build that resolves its .wasm binary
+// relative to its own __dirname when it detects it is running under
+// Node (confirmed by reading node_modules/@tensorflow/
+// tfjs-backend-wasm/dist/tf-backend-wasm.node.js).
 
-// Workaround for a real upstream incompatibility: @tensorflow/tfjs-node
-// still calls the long-removed util.isNullOrUndefined(). Must run
-// before @tensorflow/tfjs-node is required. See
-// ../src/pose-estimation/node-util-polyfill.ts for the full story.
-const nodeUtil = require("util");
-if (typeof nodeUtil.isNullOrUndefined !== "function") {
-    nodeUtil.isNullOrUndefined = (value) => value === null || value === undefined;
-}
-
-const tf = require("@tensorflow/tfjs-node");
+const tf = require("@tensorflow/tfjs");
+require("@tensorflow/tfjs-backend-wasm");
 const poseDetection = require("@tensorflow-models/pose-detection");
 
 async function main() {
+    console.log("Setting backend to 'wasm'...");
+    await tf.setBackend("wasm");
+    await tf.ready();
+    console.log(`Backend ready: ${tf.getBackend()}`);
+
     console.log("Creating BlazePose (tfjs runtime) detector...");
     const detector = await poseDetection.createDetector(
         poseDetection.SupportedModels.BlazePose,

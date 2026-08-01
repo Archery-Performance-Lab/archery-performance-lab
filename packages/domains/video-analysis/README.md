@@ -12,24 +12,42 @@ detection from pose data are **not** implemented yet.
 
 The pose-estimation wrapper is type-checked and written against the
 real `@tensorflow-models/pose-detection` API (its `.d.ts` files were
-read directly, not guessed from memory), but has **not** been run
-end-to-end: `@tensorflow/tfjs-node` ships a platform-specific native
-binary, built for whichever machine ran `pnpm install` (your Mac).
-It cannot load on a different platform (confirmed here — the dev
-sandbox this was built in is Linux, and loading the Mac-built binary
-fails with "invalid ELF header"). Run the real verification yourself:
+read directly, not guessed from memory). It runs on TensorFlow.js's
+**WASM backend** (`@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm`),
+not the more common `@tensorflow/tfjs-node` native bindings — that
+package's native "tensorflow" backend does not implement several
+image-preprocessing kernels BlazePose needs (`Transform`,
+`RotateWithOffset`, `FlipLeftRight`), a long-standing, unresolved gap
+confirmed via multiple upstream GitHub issues, not something fixable
+from this package. The WASM backend implements the full kernel set and
+has no compiled native addon, so it also isn't tied to the OS/CPU
+architecture of the machine that ran `pnpm install`.
+
+No `setWasmPaths()` configuration is needed: `@tensorflow/tfjs-backend-wasm`'s
+npm `"main"` entry is a Node-specific build that detects it's running
+under Node and resolves its `.wasm` binary relative to its own
+`__dirname` — confirmed by reading that bundle's source, and confirmed
+working (backend initializes cleanly) in this project's Linux dev
+sandbox, which — unlike the old native-binary approach — the
+architecture-portable WASM binary can actually run in.
+
+Backend initialization has been verified end-to-end. Full detector
+creation has not, since it needs to download BlazePose's model weights
+from `tfhub.dev` on first use, and that host isn't reachable from this
+dev sandbox. Run the real verification yourself:
 
 ```
 cd packages/domains/video-analysis
 node scripts/verify-pose-detector.cjs
 ```
 
-This creates a real BlazePose detector, runs it on a synthetic image,
-and confirms the pipeline doesn't crash (not that detection is
-accurate — the synthetic image has no real person in it). It needs
-network access the first time, since model weights are downloaded on
-demand. It's a manual script, not part of `pnpm test`, since it's slow
-and network-dependent — see the comment at the top of the script.
+This sets the WASM backend, creates a real BlazePose detector, runs it
+on a synthetic image, and confirms the pipeline doesn't crash (not
+that detection is accurate — the synthetic image has no real person in
+it). It needs network access the first time, since model weights are
+downloaded on demand. It's a manual script, not part of `pnpm test`,
+since it's slow and network-dependent — see the comment at the top of
+the script.
 
 ## Next steps
 
