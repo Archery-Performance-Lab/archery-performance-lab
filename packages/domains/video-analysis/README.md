@@ -138,13 +138,26 @@ the script.
   the Dynamic Spine correction and the WASM backend decision earlier
   in `CHANGELOG.md`) is to not invent such numbers — they need
   calibrating against real, labeled footage first. Use
-  `scripts/inspect-pose-signals.cjs <video> [right|left]` to print the
-  draw-side wrist's velocity and its distance to a face keypoint
-  (anchor-point proxy) frame by frame over a real video, to read real
+  `scripts/build-calibration-dataset.cjs [right|left]` to batch-process
+  every video in a calibration folder and write out, per video, the
+  draw-side wrist's velocity (raw pixels/second *and* normalized to
+  "shoulder-widths per second", since videos at different resolutions
+  and camera distances aren't directly comparable in raw pixels) and
+  its distance to a face keypoint (anchor-point proxy), frame by
+  frame, plus a `_summary.csv` with each video's peak velocity and
+  closest wrist-to-face approach and when they happened — to read real
   numbers off real footage instead of guessing:
 
   ```
   cd packages/domains/video-analysis
   npx tsc -p tsconfig.test.json
-  node scripts/inspect-pose-signals.cjs /path/to/shot.mov right
+  node scripts/build-calibration-dataset.cjs right
   ```
+
+  By default this reads from and writes to
+  `~/Development/apl-video-calibration/` (`raw-videos/` in,
+  `signals/*.csv` out) — override with the `APL_CALIBRATION_FOLDER`
+  environment variable. That folder is deliberately **not** inside
+  this repository: it holds real, potentially identifiable video of a
+  minor athlete, which must never end up in a public open-source
+  repository, and video files don't belong in a git repo regardless.
