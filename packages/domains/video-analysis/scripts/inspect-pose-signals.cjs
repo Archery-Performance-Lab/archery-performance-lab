@@ -37,8 +37,15 @@ const {
     keypointVelocityPixelsPerSecond
 } = require("../dist-test/src");
 
+// Default path so this also works when run without command-line
+// arguments (e.g. clicking "Run" in an editor rather than a
+// terminal) — change this if the video moves or you want to analyze
+// a different file. Passing a path as the first argument (see the
+// Usage comment above) always overrides this default.
+const DEFAULT_VIDEO_FILE_PATH = "/Users/luigifranchini/Desktop/IMG_1230.mov";
+
 async function main() {
-    const videoFilePath = process.argv[2];
+    const videoFilePath = process.argv[2] || DEFAULT_VIDEO_FILE_PATH;
     const drawSide = process.argv[3] === "left" ? "left" : "right";
 
     if (!videoFilePath) {
@@ -46,6 +53,8 @@ async function main() {
         process.exitCode = 1;
         return;
     }
+
+    console.log(`Analyzing: ${videoFilePath} (draw side: ${drawSide})\n`);
 
     const wristKeypointName = `${drawSide}_wrist`;
     // A face keypoint near where the string hand actually contacts at
