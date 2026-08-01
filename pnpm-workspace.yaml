@@ -2,3 +2,6 @@ packages:
   - "apps/*"
   - "packages/*"
   - "packages/*/*"
+allowBuilds:
+  '@tensorflow/tfjs-node': true
+  core-js: true
