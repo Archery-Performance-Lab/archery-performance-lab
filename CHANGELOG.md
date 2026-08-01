@@ -21,6 +21,8 @@ The format follows the principles of **Keep a Changelog** and the project adopts
 - Scaffolded `@apl/video-analysis` (M06 Video Analysis, first package under "Domains"): `PoseKeypoint`/`PoseFrame` types, a `ShootingPhase` taxonomy (see "Changed" below for the coaching-methodology review), `ShotSequenceAnalysis`, and `calculatePhaseDurations()` as the first pure calculation.
 - Pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`) against the real `@tensorflow-models/pose-detection` BlazePose API, running on TensorFlow.js's WASM backend (`@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm`) — verified end-to-end (backend initialization, detector creation, and `estimatePoses()` on a synthetic frame) on both a Linux sandbox and the target Mac.
 - Frame extraction from video files: `readVideoMetadata()` (dimensions, frame rate, duration via ffprobe) and `extractFramesFromVideo()` (an async generator yielding one decoded RGB pixel tensor per frame), using `ffmpeg-static`/`ffprobe-static` via `fluent-ffmpeg` — closes the missing input side of `estimatePoseFrame()`.
+- `biomechanics` module: pure geometry/kinematics functions over `PoseKeypoint`s (`distanceBetweenKeypoints`, `angleAtJointDegrees`, `perpendicularDistanceFromLinePixels`, `keypointVelocityPixelsPerSecond`) — the signal-computation building blocks real phase detection will need, fully unit-tested.
+- `shot-analysis/analyzeShotVideo()`: wires `extractFramesFromVideo()` and `estimatePoseFrame()` into one call yielding a pose sequence per video, with correct tensor disposal.
 
 ### Changed
 
