@@ -10,7 +10,15 @@
 // Run from packages/domains/video-analysis:
 //   node scripts/verify-pose-detector.cjs
 
-require("@tensorflow/tfjs-node");
+// Workaround for a real upstream incompatibility: @tensorflow/tfjs-node
+// still calls the long-removed util.isNullOrUndefined(). Must run
+// before @tensorflow/tfjs-node is required. See
+// ../src/pose-estimation/node-util-polyfill.ts for the full story.
+const nodeUtil = require("util");
+if (typeof nodeUtil.isNullOrUndefined !== "function") {
+    nodeUtil.isNullOrUndefined = (value) => value === null || value === undefined;
+}
+
 const tf = require("@tensorflow/tfjs-node");
 const poseDetection = require("@tensorflow-models/pose-detection");
 

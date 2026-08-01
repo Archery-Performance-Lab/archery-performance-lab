@@ -1,3 +1,4 @@
+import "./node-util-polyfill";
 import "@tensorflow/tfjs-node";
 import * as poseDetection from "@tensorflow-models/pose-detection";
 
