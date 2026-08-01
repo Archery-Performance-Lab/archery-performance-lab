@@ -7,11 +7,9 @@ import type { PoseFrame, PoseKeypoint } from "../types";
  * the result into APL's PoseFrame domain type.
  *
  * `frame` must already be a decoded Tensor3D — a [height, width,
- * channels] pixel tensor, e.g. from tf.node.decodeImage() (if
- * @tensorflow/tfjs-node is added later purely for image decoding) or
- * any other JPEG/PNG decoder wired up to produce a tensor. Extracting
- * frames from a video file (e.g. with ffmpeg) is a separate,
- * not-yet-implemented concern — see README.md.
+ * channels] pixel tensor. `frame-extraction/extractFramesFromVideo()`
+ * produces these directly from a video file; see
+ * `shot-analysis/analyzeShotVideo()` for the two wired together.
  *
  * If the underlying library ever omits `name` on a keypoint
  * (confirmed, by reading its BlazePose/tfjs implementation, to always

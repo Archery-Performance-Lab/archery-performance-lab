@@ -6,10 +6,18 @@ Video Analysis Engine — corresponds to **M06 Video Analysis** in
 ## Status
 
 Domain types, one pure calculation (`calculatePhaseDurations`), a
-pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`),
-and a frame-extraction module (`readVideoMetadata`,
-`extractFramesFromVideo`) exist. Shooting-phase detection from pose
-data is **not** implemented yet.
+pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`), a
+frame-extraction module (`readVideoMetadata`,
+`extractFramesFromVideo`), the two wired together
+(`shot-analysis/analyzeShotVideo`), and a `biomechanics` module of
+pure geometric/kinematic signal functions (distance, angle, velocity
+between keypoints) all exist. Shooting-phase detection itself — using
+those biomechanical signals to actually segment a pose sequence into
+phases — is **not** implemented yet: it needs numeric thresholds
+(how much wrist velocity counts as a Release spike, how close a
+distance counts as "stabilized" at Anchor, etc.) that cannot be
+responsibly invented without real, labeled footage to calibrate
+against — see the note in `shot-analysis/` below.
 
 The pose-estimation wrapper is type-checked and written against the
 real `@tensorflow-models/pose-detection` API (its `.d.ts` files were
@@ -52,11 +60,17 @@ the script.
 
 ## Next steps
 
-- Wiring `extractFramesFromVideo()`'s output into
-  `estimatePoseFrame()`, and that combined output into shooting-phase
-  detection — this is where the `ShootingPhase` taxonomy in
-  `types/phase.ts` actually gets used, so it's worth settling that
-  taxonomy first.
+- Actual phase-boundary detection: consuming `biomechanics/`'s signal
+  functions (and `shot-analysis/analyzeShotVideo()`'s pose sequence)
+  to segment a shot into `ShootingPhaseSegment`s. Blocked on getting
+  real, labeled footage to calibrate detection thresholds against —
+  see `shot-analysis/` below.
+- An `ArcherHandedness` (or similar) concept: which BlazePose keypoint
+  is the "string arm" vs. "bow arm" depends on whether the archer is
+  right- or left-handed, and on which side of the archer the camera
+  is on. Not yet modeled — the `biomechanics/` functions are
+  deliberately handedness-agnostic (they just take named keypoints),
+  leaving this resolution to whatever calls them.
 
 ## Domain model
 
@@ -102,3 +116,25 @@ the script.
   shapes and frame count look right. Like the pose-detector script,
   it's manual (not part of `pnpm test`) since it spawns real,
   platform-specific binaries.
+- `biomechanics/` — pure, deterministic geometry/kinematics functions
+  over `PoseKeypoint`s: `findKeypoint()` (look up a named keypoint in
+  a frame), `distanceBetweenKeypoints()`, `angleAtJointDegrees()` (the
+  bend angle at a joint, e.g. the elbow), `perpendicularDistanceFromLinePixels()`
+  (how far a keypoint sits off a straight line through two others —
+  e.g. checking the grip-hand/shoulders/string-elbow alignment the
+  coach described for Anchor), `keypointVelocityPixelsPerSecond()`.
+  All pixel-based, not real-world units — this package has no camera
+  calibration (focal length, distance to subject), so pixel distances
+  and velocities are only meaningful *relatively*, within one
+  recording. Fully unit-tested (no video needed — deterministic math
+  over constructed fixtures).
+- `shot-analysis/` — `analyzeShotVideo()`, `extractFramesFromVideo()`
+  and `estimatePoseFrame()` wired together into one call that yields a
+  `PoseFrame` per frame of a video file, handling tensor disposal
+  correctly. This is as far as the pipeline goes for now: turning that
+  pose sequence into actual `ShootingPhaseSegment`s needs numeric
+  thresholds on the `biomechanics/` signals (e.g. "what wrist-velocity
+  spike counts as Release"), and this project's own discipline (see
+  the Dynamic Spine correction and the WASM backend decision earlier
+  in `CHANGELOG.md`) is to not invent such numbers — they need
+  calibrating against real, labeled footage first.
