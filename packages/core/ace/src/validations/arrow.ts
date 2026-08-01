@@ -1,4 +1,4 @@
-import type { StaticSpineMeasurement } from "../types";
+import type { Arrow, StaticSpineMeasurement } from "../types";
 
 /**
  * Validates a Static Spine Measurement before it is accepted as Raw
@@ -26,4 +26,52 @@ export function isValidStaticSpineMeasurement(
         measurement.deflectionThousandthsInch > 0;
 
     return hasKnownStandard && hasPositiveFiniteDeflection;
+}
+
+/**
+ * Validates an Arrow configuration before it is accepted as Raw Data.
+ *
+ * focMeasuredPercent/focCalculatedPercent, when present, are only
+ * checked for being finite: a rear-weighted arrow can have a negative
+ * FOC, so no sign or range constraint is enforced here.
+ */
+export function isValidArrow(arrow: Arrow): boolean {
+
+    const hasNonEmptyIdentity =
+        arrow.manufacturer.trim().length > 0 &&
+        arrow.model.trim().length > 0 &&
+        arrow.vaneModel.trim().length > 0;
+
+    const hasPositiveFiniteLength =
+        Number.isFinite(arrow.lengthMillimeters) && arrow.lengthMillimeters > 0;
+
+    const hasNonNegativeFiniteMasses =
+        Number.isFinite(arrow.shaftMassGrams) && arrow.shaftMassGrams >= 0 &&
+        Number.isFinite(arrow.pointMassGrams) && arrow.pointMassGrams >= 0 &&
+        Number.isFinite(arrow.insertMassGrams) && arrow.insertMassGrams >= 0 &&
+        Number.isFinite(arrow.pinMassGrams) && arrow.pinMassGrams >= 0 &&
+        Number.isFinite(arrow.nockMassGrams) && arrow.nockMassGrams >= 0 &&
+        Number.isFinite(arrow.vaneMassGrams) && arrow.vaneMassGrams >= 0;
+
+    const hasPositiveFiniteTotalMass =
+        Number.isFinite(arrow.totalMassGrams) && arrow.totalMassGrams > 0;
+
+    const hasKnownPointMaterial =
+        arrow.pointMaterial === "Steel" || arrow.pointMaterial === "Tungsten";
+
+    const hasValidOptionalFocValues =
+        (arrow.focMeasuredPercent === undefined ||
+            Number.isFinite(arrow.focMeasuredPercent)) &&
+        (arrow.focCalculatedPercent === undefined ||
+            Number.isFinite(arrow.focCalculatedPercent));
+
+    return (
+        hasNonEmptyIdentity &&
+        hasPositiveFiniteLength &&
+        hasNonNegativeFiniteMasses &&
+        hasPositiveFiniteTotalMass &&
+        hasKnownPointMaterial &&
+        hasValidOptionalFocValues &&
+        isValidStaticSpineMeasurement(arrow.staticSpine)
+    );
 }
