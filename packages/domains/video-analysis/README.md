@@ -137,4 +137,14 @@ the script.
   spike counts as Release"), and this project's own discipline (see
   the Dynamic Spine correction and the WASM backend decision earlier
   in `CHANGELOG.md`) is to not invent such numbers — they need
-  calibrating against real, labeled footage first.
+  calibrating against real, labeled footage first. Use
+  `scripts/inspect-pose-signals.cjs <video> [right|left]` to print the
+  draw-side wrist's velocity and its distance to a face keypoint
+  (anchor-point proxy) frame by frame over a real video, to read real
+  numbers off real footage instead of guessing:
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/inspect-pose-signals.cjs /path/to/shot.mov right
+  ```
