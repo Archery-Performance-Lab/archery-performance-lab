@@ -18,10 +18,13 @@ The format follows the principles of **Keep a Changelog** and the project adopts
 - Completed the `validations` module: `isValidArcher`, `isValidArrow` (composing `isValidStaticSpineMeasurement`), `isValidPlunger`, `isValidBow`, `isValidEnvironment`, `isValidShot` (World Archery 0-10 scoring), `isValidSession` (composing all of the above) — closes v0.5.0's "Validation workflow" objective.
 - First automated tests for ACE, using Node's built-in test runner (`node:test`) — no third-party test framework dependency. Covers utils, all physics primitives, all 7 calculation engines, ballistics and the full validations module (73 tests, 23 suites), including a projectile-motion regression check against the closed-form solution.
 - `typescript` and `@types/node` declared as devDependencies of `@apl/ace` (previously undeclared anywhere in the repo — `tsc` only worked by accident wherever a global install happened to exist). `turbo` and `prettier` declared as root devDependencies, for the same reason: both were already referenced by root scripts (`turbo run ...`, `prettier --write .`) but never installable from a clean checkout.
+- Scaffolded `@apl/video-analysis` (M06 Video Analysis, first package under "Domains"): `PoseKeypoint`/`PoseFrame` types, a first-pass `ShootingPhase` six-phase taxonomy (flagged as needing coaching-methodology review, not a settled decision), `ShotSequenceAnalysis`, and `calculatePhaseDurations()` as the first pure calculation.
+- Pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`) against the real `@tensorflow-models/pose-detection` BlazePose API, running on TensorFlow.js's WASM backend (`@tensorflow/tfjs` + `@tensorflow/tfjs-backend-wasm`) — verified end-to-end (backend initialization, detector creation, and `estimatePoses()` on a synthetic frame) on both a Linux sandbox and the target Mac.
 
 ### Changed
 
 - `Arrow.spine: number` replaced with `Arrow.staticSpine: StaticSpineMeasurement`, to keep the measurement standard and units explicit rather than a bare number.
+- `@apl/video-analysis`'s pose-estimation backend switched from `@tensorflow/tfjs-node` (native bindings) to the WASM backend: tfjs-node's native "tensorflow" backend does not implement several image-preprocessing kernels BlazePose needs (`Transform`, `RotateWithOffset`, `FlipLeftRight`) — a long-standing, unresolved upstream gap, not fixable from this package. The WASM backend implements the full kernel set and has no compiled native addon, so it is also portable across the OS/CPU architecture that ran `pnpm install`.
 
 ### Fixed
 
@@ -112,6 +115,7 @@ Security-related improvements.
 | 0.3.0 | In progress | Domain Model |
 | 0.4.0 | In progress | Data Model |
 | 0.5.0 | Content complete | Arrow Tuning Module |
+| 0.6.0 | In progress | Video Analysis Module |
 
 ---
 

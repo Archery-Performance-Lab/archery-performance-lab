@@ -120,14 +120,14 @@ territory, once `apps/web` exists) is in scope yet.
 
 ## v0.6.0 — Video Analysis Module
 
-**Status:** Planned
+**Status:** In progress
 
 Objectives:
 
-- Shot sequence analysis.
-- Shooting phase detection.
-- Timing analysis.
-- Technical performance metrics.
+- [ ] Shot sequence analysis — domain types in place (`ShotSequenceAnalysis`, `PoseFrame`, `PoseKeypoint`); pose estimation wrapper (`createPoseDetector`, `estimatePoseFrame`) built against the real `@tensorflow-models/pose-detection` BlazePose API and verified end-to-end on the WASM backend (`packages/domains/video-analysis/src/pose-estimation`). Frame extraction from a video file (e.g. via ffmpeg) is not implemented yet.
+- [ ] Shooting phase detection — a first-pass six-phase taxonomy exists (`ShootingPhase` in `types/phase.ts`: Stance, Nocking, Drawing, Anchor, Release, FollowThrough), explicitly flagged as needing coaching-methodology review before it drives real detection logic. No detection algorithm yet — depends on frame extraction above.
+- [x] Timing analysis — `calculatePhaseDurations()` (`packages/domains/video-analysis/src/calculations/timing`), pure post-processing over phase segments.
+- [ ] Technical performance metrics.
 
 ---
 
