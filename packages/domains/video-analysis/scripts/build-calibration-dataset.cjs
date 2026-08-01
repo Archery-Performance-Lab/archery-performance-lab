@@ -201,8 +201,26 @@ async function main() {
         const csvFilePath = path.join(SIGNALS_FOLDER, `${path.parse(videoFileName).name}.csv`);
         writeCsv(csvFilePath, csvHeader, csvRows);
 
-        const rowsWithVelocity = rows.filter((row) => row.velocityPixelsPerSecond !== null);
-        const rowsWithDistance = rows.filter((row) => row.distancePixels !== null);
+        // The first real calibration videos showed the pose detector
+        // needs a moment to "lock on": shoulder width (which should be
+        // roughly constant for a static camera and standing archer)
+        // swung wildly frame to frame at the very start of several
+        // clips (e.g. 111px -> 169px -> 309px within 33ms in one
+        // video, before settling to a stable ~328px for the rest of
+        // it), producing spurious multi-thousand-pixel/second
+        // "velocity" readings that were startup noise, not a real
+        // Release. Excluding this warm-up window from the summary
+        // stats (not from the CSV itself, which keeps every frame)
+        // avoids those false peaks — see README.md for the full
+        // reasoning and this being a heuristic to revisit as more
+        // videos are analyzed, not a settled number.
+        const WARMUP_EXCLUSION_MILLISECONDS = 300;
+        const stableRows = rows.filter(
+            (row) => row.timestampMilliseconds >= WARMUP_EXCLUSION_MILLISECONDS
+        );
+
+        const rowsWithVelocity = stableRows.filter((row) => row.velocityPixelsPerSecond !== null);
+        const rowsWithDistance = stableRows.filter((row) => row.distancePixels !== null);
 
         const peakVelocityRow = rowsWithVelocity.reduce(
             (max, row) => (row.velocityPixelsPerSecond > (max?.velocityPixelsPerSecond ?? -Infinity) ? row : max),
