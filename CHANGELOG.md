@@ -15,8 +15,8 @@ The format follows the principles of **Keep a Changelog** and the project adopts
 - `ballistics` module: full 2D trajectory under gravity and drag, integrated with a 4th-order Runge-Kutta method (`stepTrajectoryRK4`, `calculateBallisticTrajectory`).
 - Static Spine data model (`StaticSpineMeasurement`), explicitly recording the test standard (`ASTM-F2031` or `AMO-ATA`) alongside the deflection value, since the two give different readings for the same shaft.
 - `Plunger` (button) domain model, wired into `Bow`.
-- First real implementation of the `validations` module: `isValidStaticSpineMeasurement()`.
-- First automated tests for ACE, using Node's built-in test runner (`node:test`) — no third-party test framework dependency. Covers utils, all physics primitives, all 7 calculation engines, ballistics and validation, including a projectile-motion regression check against the closed-form solution.
+- Completed the `validations` module: `isValidArcher`, `isValidArrow` (composing `isValidStaticSpineMeasurement`), `isValidPlunger`, `isValidBow`, `isValidEnvironment`, `isValidShot` (World Archery 0-10 scoring), `isValidSession` (composing all of the above) — closes v0.5.0's "Validation workflow" objective.
+- First automated tests for ACE, using Node's built-in test runner (`node:test`) — no third-party test framework dependency. Covers utils, all physics primitives, all 7 calculation engines, ballistics and the full validations module (73 tests, 23 suites), including a projectile-motion regression check against the closed-form solution.
 - `typescript` and `@types/node` declared as devDependencies of `@apl/ace` (previously undeclared anywhere in the repo — `tsc` only worked by accident wherever a global install happened to exist). `turbo` and `prettier` declared as root devDependencies, for the same reason: both were already referenced by root scripts (`turbo run ...`, `prettier --write .`) but never installable from a clean checkout.
 
 ### Changed
@@ -111,7 +111,7 @@ Security-related improvements.
 | 0.2.0 | Content complete | Manifesto |
 | 0.3.0 | In progress | Domain Model |
 | 0.4.0 | In progress | Data Model |
-| 0.5.0 | In progress | Arrow Tuning Module |
+| 0.5.0 | Content complete | Arrow Tuning Module |
 
 ---
 

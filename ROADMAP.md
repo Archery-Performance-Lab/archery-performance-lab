@@ -102,7 +102,7 @@ Objectives:
 
 ## v0.5.0 — Arrow Tuning Module
 
-**Status:** In progress
+**Status:** Content complete (not yet tagged as a release)
 
 Objectives:
 
@@ -110,7 +110,11 @@ Objectives:
 - [x] FOC analysis — `calculateFrontOfCenter()`.
 - [x] Dynamic spine analysis — modeled as spine indexing + plunger tuning rather than a calculated formula (`StaticSpineMeasurement`, `calculateRecommendedPlungerSpringTension()`); see `CHANGELOG.md` [Unreleased] for the reasoning.
 - [x] Performance calculations — Kinetic Energy, Momentum, Arrow Speed estimation, Time of Flight, Ballistics (`packages/core/ace/src/calculations`, `packages/core/ace/src/ballistics`).
-- [ ] Validation workflow — only `isValidStaticSpineMeasurement()` exists so far; `Bow`, `Archer`, `Session` and `Shot` have no validation yet.
+- [x] Validation workflow — `isValidArcher`, `isValidArrow`, `isValidBow`, `isValidPlunger`, `isValidEnvironment`, `isValidShot`, `isValidSession` (`packages/core/ace/src/validations`).
+
+Note: this covers the ACE calculation-engine side of Arrow Tuning.
+No UI/workflow for a human to actually perform the tuning (v0.6.0+
+territory, once `apps/web` exists) is in scope yet.
 
 ---
 
