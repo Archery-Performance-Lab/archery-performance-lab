@@ -199,3 +199,24 @@ the script.
   threshold/logic changes in `phase-detection/detect.ts`, which is
   meant to keep improving as more real footage gets checked against
   it, not to be treated as finished.
+
+  `scripts/inspect-slowmo-release.cjs [videoFilePath] [right|left]` is
+  a one-video-at-a-time variant for a specific reason: a slow-motion,
+  fixed-camera close-up of Kim Woojin's Release (Berlin World Cup
+  2018) shows the actual moment the string leaves the fingers spread
+  across far more real frames than any normal-speed clip does, which
+  is exactly what's needed to check detect.ts's "sustained rise over N
+  consecutive frames" logic against fine-grained ground truth instead
+  of a release compressed into 2-3 frames. Rather than re-scanning the
+  whole (growing) calibration folder to look closely at one video, this
+  runs the pipeline against a single file — defaulting to that
+  slow-motion video — and prints a dense, frame-by-frame table around
+  the detected phases (or the peak-velocity moment, if no Release was
+  found), in addition to writing the same per-frame CSV the batch
+  script would. Same usage pattern:
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/inspect-slowmo-release.cjs right
+  ```
