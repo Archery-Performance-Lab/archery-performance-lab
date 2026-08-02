@@ -20,6 +20,17 @@
 
 # 1. Purpose
 
+> **Status note (2026-08-02):** direction briefly shifted toward a desktop app — see
+> `ADI_DESKTOP_INTERFACE.md` (APL-ARC-005) — then reverted back to this browser-based
+> plan after weighing both directly against each other. The desktop path traded lower
+> friction distribution and mobile/tablet reach for full reuse of the existing Node-based
+> video pipeline; for an open-source project meant to reach other archers and coaches
+> with as little friction as possible, that trade wasn't worth it. This is the active
+> plan. `ADI_DESKTOP_INTERFACE.md` is kept, not deleted, as a record of the evaluation —
+> per this project's traceability principle — and its module-reuse findings (frame
+> extraction needs a real rewrite for the browser; everything downstream of a
+> `PoseFrame[]` does not) remain the actual scope of work either way.
+
 This document is a first, lightweight draft of the user-facing Web Interface described in
 `APL_SYSTEM_ARCHITECTURE.md` (section 3: `Users → Web Interface → REST API Layer → ACE`).
 
