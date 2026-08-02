@@ -58,25 +58,36 @@
  *   falls, letting the string push them open rather than releasing
  *   it — the bow arm keeps its position/push throughout.
  * - Release: the instant the string leaves the fingers, triggered by
- *   the clicker falling. Not directly observable from body pose alone
- *   — BlazePose tracks body landmarks, not the arrow tip or clicker.
- *   The primary detection signal is the clicker's sound on the
- *   video's audio track; when audio is unusable, this should fall
- *   back to inferring the moment from a sudden velocity increase in
- *   the string arm. Both are detection concerns for whatever consumes
- *   this type, not something the type itself encodes.
+ *   the clicker falling.
  *
- *   That fallback is, in practice, all `phase-detection/` currently
- *   implements, and a real calibration video (an extreme close-up,
- *   slow-motion clip of Kim Woojin's Release) showed exactly why that
- *   is not enough on its own: with the draw-side hand close to the
- *   face for most of the clip, BlazePose's keypoint tracking got
- *   intermittently confused throughout, not just at the start,
- *   producing velocity noise with no clean ramp to detect — see
- *   README.md's calibration section. Audio-based detection is not
- *   implemented yet, but calibration videos going forward should
- *   specifically capture the clicker sound clearly, so that becomes
- *   possible.
+ *   Detection went through a real correction worth recording. The
+ *   first idea was to key off the clicker itself — its sound on the
+ *   audio track as the primary signal, a wrist-velocity spike as a
+ *   fallback — and, from that, a requirement that future calibration
+ *   videos capture audible clicker sound. Coach input corrected this:
+ *   a real technical analysis is filmed from the side opposite the
+ *   clicker (to see the archer's whole action — stance through
+ *   follow-through), which means an instructor judging a Release in
+ *   practice is not listening for the clicker or watching it fall at
+ *   all. They watch the string-hand fingers. And what they're judging
+ *   there is not merely timing but correctness: the finger movement
+ *   must be involuntary — the string pushing the fingers open as
+ *   scapula rotation continues past the clicker (see Expansion above)
+ *   — not the archer voluntarily opening them, which is a real
+ *   technical fault (plucking/gripping the release), not a clean one.
+ *   So the clicker requirement is withdrawn; the real signal is visual
+ *   observation of the string fingers, not audio.
+ *
+ *   This lands on a genuine, currently unresolved limitation, not a
+ *   settled implementation: BlazePose's 33-keypoint model has a wrist
+ *   landmark but no individual finger joints, so "involuntary vs.
+ *   voluntary finger movement" — the actual criterion above — is not
+ *   something the current pose model can see at all, only something a
+ *   human coach can judge by eye. Whether that gap gets closed with a
+ *   hand/finger-specific pose model, an indirect proxy from wrist-level
+ *   motion, or stays a human-judgment-only criterion for now is an open
+ *   question, not decided here. Detection is a concern for whatever
+ *   consumes this type, not something the type itself encodes.
  * - FollowThrough: continued expansion after release, the string-hand
  *   sliding back along the neck, while the bow arm keeps its forward
  *   push so the bow kicks forward horizontally.
