@@ -78,14 +78,33 @@
  *   So the clicker requirement is withdrawn; the real signal is visual
  *   observation of the string fingers, not audio.
  *
- *   This lands on a genuine, currently unresolved limitation, not a
- *   settled implementation: BlazePose's 33-keypoint model has a wrist
- *   landmark but no individual finger joints, so "involuntary vs.
- *   voluntary finger movement" — the actual criterion above — is not
- *   something the current pose model can see at all, only something a
- *   human coach can judge by eye. Whether that gap gets closed with a
- *   hand/finger-specific pose model, an indirect proxy from wrist-level
- *   motion, or stays a human-judgment-only criterion for now is an open
+ *   What "watching the string fingers" actually means, in detail: the
+ *   back of the hand relaxed, no tension; the string drawn between the
+ *   first and second phalanx of the fingers used; at Release, the
+ *   fingers must not open outward — they stay relaxed and slightly
+ *   curved toward the neck, continuing to graze it through
+ *   FollowThrough (see below). Two real draw techniques exist and
+ *   should not be conflated: a three-finger draw (index, middle, ring)
+ *   where the ring finger sometimes only rests on the string without
+ *   actively pulling, and a genuine two-finger draw (index and middle
+ *   only, ring not used at all) as a distinct technique some archers
+ *   use. Neither is "the" correct one — which fingers an archer draws
+ *   with is technique, not something to standardize on.
+ *
+ *   This clarified, not removed, the limitation noted above: BlazePose
+ *   has a wrist landmark but no individual finger joints, so the
+ *   finger-curl/direction part of this criterion is still not
+ *   observable from the current pose model. But tension in the back of
+ *   the hand turns out to *not* require finger-level tracking, or even
+ *   contact, to observe — a tensed hand visibly shows its tendons
+ *   standing out under the skin; a relaxed one doesn't. That is a
+ *   visual, video-observable signal, just not a keypoint-position one:
+ *   detecting it would mean image/texture analysis on the hand region
+ *   (does this patch of skin show raised tendons), a genuinely
+ *   different computer-vision technique from pose estimation, not an
+ *   extension of it. Whether any of this — finger-specific pose
+ *   tracking, tendon-visibility detection, or staying a
+ *   human-judgment-only criterion for now — gets built is an open
  *   question, not decided here. Detection is a concern for whatever
  *   consumes this type, not something the type itself encodes.
  * - FollowThrough: continued expansion after release, the string-hand
