@@ -200,6 +200,23 @@ the script.
   meant to keep improving as more real footage gets checked against
   it, not to be treated as finished.
 
+  A real run against all 17 calibration videos surfaced a genuine bug,
+  not a threshold to tune: `detectShootingPhases()` has no notion of
+  the pose detector's own startup noise (see the calibration-script
+  warmup note below), so 14 of 17 videos detected "Release" within the
+  first ~300ms and then an implausible "FollowThrough" spanning almost
+  the entire rest of the clip (up to 320+ seconds in one case) — the
+  false trigger from warmup noise stopped the detector from ever
+  looking further into the video for the real Release. Fixed at the
+  call site, not inside `detectShootingPhases()` itself: both
+  `detect-phases.cjs` and `inspect-slowmo-release.cjs` now filter out
+  frames from the first 300ms before detection runs, keeping
+  `detectShootingPhases()` a pure function agnostic to where its
+  frames came from (its synthetic unit tests build clean sequences
+  starting at t=0 and would break if the function silently dropped
+  early frames itself). Any script or caller that feeds it real video
+  frames needs to apply the same filter — this is not automatic.
+
   `scripts/inspect-slowmo-release.cjs [videoFilePath] [right|left]` is
   a one-video-at-a-time variant for a specific reason: a slow-motion,
   fixed-camera close-up of Kim Woojin's Release (Berlin World Cup

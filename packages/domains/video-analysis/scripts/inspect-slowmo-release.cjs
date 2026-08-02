@@ -211,7 +211,21 @@ async function main() {
     writeCsv(csvFilePath, csvHeader, csvRows);
     console.log(`Full per-frame data: ${csvFilePath}\n`);
 
-    const segments = detectShootingPhases(poseFrames, { drawSide });
+    // Same warmup issue documented in build-calibration-dataset.cjs and
+    // detect-phases.cjs: the pose detector's first ~300ms is often
+    // unstable (shoulder width swinging wildly before settling),
+    // producing spurious velocity readings that detectShootingPhases()
+    // has no way to tell apart from a real Release ramp. Filtered out
+    // here, before detection, rather than inside detectShootingPhases()
+    // itself, which stays a pure function agnostic to where its frames
+    // came from — see detect-phases.cjs for the full reasoning and the
+    // real run (14 of 17 videos) that showed why this matters.
+    const WARMUP_EXCLUSION_MILLISECONDS = 300;
+    const stablePoseFrames = poseFrames.filter(
+        (poseFrame) => poseFrame.timestampMilliseconds >= WARMUP_EXCLUSION_MILLISECONDS
+    );
+
+    const segments = detectShootingPhases(stablePoseFrames, { drawSide });
 
     if (segments.length === 0) {
         console.log("detectShootingPhases(): No Release found (or no sustained velocity rise detected).");

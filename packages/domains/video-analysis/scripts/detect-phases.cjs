@@ -63,6 +63,27 @@ async function main() {
     await tf.ready();
     const detector = await createPoseDetector();
 
+    // Same warmup issue documented in build-calibration-dataset.cjs:
+    // the pose detector's first ~300ms is frequently unstable (shoulder
+    // width swinging wildly frame to frame before settling), producing
+    // spurious multi-shoulder-widths/second "velocity" readings. That
+    // script excludes this window from its own summary stats, but
+    // detectShootingPhases() itself has no notion of detector warmup --
+    // it just looks for the first sustained velocity rise, and a real
+    // run against 17 real videos showed exactly what that means in
+    // practice: 14 of them detected "Release" within the first ~300ms,
+    // every time immediately followed by a FollowThrough spanning
+    // almost the entire rest of the clip (up to 320+ seconds in one
+    // case) -- the false trigger from warmup noise stops the detector
+    // from ever looking further into the video for the real Release.
+    // Filtering the warmup window out here, before detection runs
+    // (rather than inside detectShootingPhases() itself), keeps that
+    // function a pure signal-processing function with no knowledge of
+    // where its input came from -- the synthetic unit tests build clean
+    // sequences starting at t=0 and would break if the function itself
+    // silently dropped early frames.
+    const WARMUP_EXCLUSION_MILLISECONDS = 300;
+
     for (const videoFilePath of videoFilePaths) {
         const videoFileName = path.basename(videoFilePath);
         console.log(`${videoFileName}:`);
@@ -82,7 +103,11 @@ async function main() {
             continue;
         }
 
-        const segments = detectShootingPhases(poseFrames, { drawSide });
+        const stablePoseFrames = poseFrames.filter(
+            (poseFrame) => poseFrame.timestampMilliseconds >= WARMUP_EXCLUSION_MILLISECONDS
+        );
+
+        const segments = detectShootingPhases(stablePoseFrames, { drawSide });
 
         if (segments.length === 0) {
             console.log("  No Release found (or no sustained velocity rise detected).\n");
