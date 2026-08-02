@@ -65,6 +65,18 @@
  *   back to inferring the moment from a sudden velocity increase in
  *   the string arm. Both are detection concerns for whatever consumes
  *   this type, not something the type itself encodes.
+ *
+ *   That fallback is, in practice, all `phase-detection/` currently
+ *   implements, and a real calibration video (an extreme close-up,
+ *   slow-motion clip of Kim Woojin's Release) showed exactly why that
+ *   is not enough on its own: with the draw-side hand close to the
+ *   face for most of the clip, BlazePose's keypoint tracking got
+ *   intermittently confused throughout, not just at the start,
+ *   producing velocity noise with no clean ramp to detect — see
+ *   README.md's calibration section. Audio-based detection is not
+ *   implemented yet, but calibration videos going forward should
+ *   specifically capture the clicker sound clearly, so that becomes
+ *   possible.
  * - FollowThrough: continued expansion after release, the string-hand
  *   sliding back along the neck, while the bow arm keeps its forward
  *   push so the bow kicks forward horizontally.

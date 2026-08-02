@@ -165,6 +165,28 @@ the script.
   this repository: it holds real, potentially identifiable video of a
   minor athlete, which must never end up in a public open-source
   repository, and video files don't belong in a git repo regardless.
+
+  **Requirement for future calibration videos: audible clicker sound.**
+  Found from a real, extreme-close-up slow-motion video (Kim Woojin's
+  Release, Berlin World Cup 2018): the wrist-velocity signal this
+  detector relies on can be genuinely too noisy to use, not just at
+  the start of a clip but recurring throughout it — in that video, the
+  draw-side hand stays close to the face for most of its 55s duration,
+  and BlazePose's keypoint tracking gets intermittently confused by
+  that proximity/occlusion the whole way through, producing spurious
+  velocity spikes with no clean, sustained ramp to find. That video is
+  being kept purely as a visual reference, not run through automated
+  detection. `types/phase.ts`'s own doc comment for Release already
+  says the *real* signal should be the clicker's audio, with a
+  wrist-velocity spike only as a fallback when audio is unusable —
+  that fallback was, in practice, all this project had so far, since
+  no calibration video collected until now was checked for audio
+  quality. Audio-based detection itself is not implemented yet, but
+  future videos added to `raw-videos/` should specifically capture the
+  clicker sound clearly (camera close enough to the bow, minimal wind/
+  crowd noise over the mic) so that work becomes possible later,
+  instead of accumulating more video that can only ever support the
+  fallback signal.
 - `phase-detection/` — `detectShootingPhases()`, a **first-pass,
   provisional** detector, not a finished one. Detects Anchor, Release
   and FollowThrough by finding a sustained rise in the draw-side
