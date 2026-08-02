@@ -9,12 +9,16 @@ Domain types, one pure calculation (`calculatePhaseDurations`), a
 pose-estimation wrapper (`createPoseDetector`, `estimatePoseFrame`), a
 frame-extraction module (`readVideoMetadata`,
 `extractFramesFromVideo`), the two wired together
-(`shot-analysis/analyzeShotVideo`), a `biomechanics` module of pure
-geometric/kinematic signal functions (distance, angle, velocity
-between keypoints), and a **first-pass, provisional**
-`phase-detection/detectShootingPhases()` all exist. It detects Anchor,
-Release and FollowThrough from real calibration footage; Stance,
-PreDraw, Drawing, Aiming and Expansion are not detected yet — see
+(`shot-analysis/analyzeShotVideo`, plus
+`analyzeShotVideoWithFrames()` for callers that need the raw pixels),
+a `biomechanics` module of pure geometric/kinematic signal functions
+(distance, angle, velocity between keypoints), a **first-pass,
+provisional** `phase-detection/detectShootingPhases()`, and a
+`hand-tension/` module (a candidate, unvalidated texture-based proxy
+for visible tendon tension in the string hand) all exist.
+`detectShootingPhases()` detects Anchor, Release and FollowThrough
+from real calibration footage; Stance, Nocking, SetUp, PreDraw,
+Drawing, Aiming and Expansion are not detected yet — see
 `phase-detection/` below for exactly why and what each would need.
 
 The pose-estimation wrapper is type-checked and written against the
@@ -259,4 +263,41 @@ the script.
   cd packages/domains/video-analysis
   npx tsc -p tsconfig.test.json
   node scripts/inspect-slowmo-release.cjs right
+  ```
+- `hand-tension/` — `computeCropRegionAroundKeypoint()` (a crop region
+  sized relative to shoulder width, centered on a keypoint, clamped to
+  frame bounds — pure, fully unit-tested), `cropFrameRegion()` (slices
+  that region out of a frame tensor), `computeHandTensionMetric()`
+  (variance of the region's Laplacian response — a standard,
+  explainable texture/edge-density measure, not a learned model).
+
+  This exists for a specific, real coaching observation (see
+  `types/phase.ts`'s Release doc comment): a tensed hand visibly shows
+  its tendons standing out under the skin, a relaxed one doesn't —
+  which BlazePose's keypoint model (position-only, no finger joints)
+  cannot see, since it's a texture difference, not a position one.
+  Whether Laplacian variance over a hand-sized crop is actually a good
+  proxy for that is a real, **completely unvalidated** hypothesis —
+  nobody has yet checked whether this metric's values rise around
+  real tension (Anchor/Expansion) versus a relaxed moment in real
+  footage. `scripts/inspect-hand-tension.cjs [videoFilePath]
+  [right|left]` exists to check exactly that: it computes the metric
+  frame by frame around the draw-side wrist (defaulting to the
+  slow-motion Kim Woojin video, the highest-resolution footage
+  available) and prints the highest/lowest values with their
+  timestamps, so they can be checked against what the real video shows
+  at those exact moments — the metric means nothing until validated
+  that way.
+
+  `shot-analysis/analyzeShotVideoWithFrames()` is the pipeline variant
+  this needed: `analyzeShotVideo()` disposes each frame's pixel tensor
+  right after pose estimation, since it never exposes the raw image —
+  fine for keypoint-only signals, but hand-tension/ needs the actual
+  pixels, so this new generator yields the frame alongside its
+  PoseFrame and leaves disposal to the caller instead.
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/inspect-hand-tension.cjs right
   ```
