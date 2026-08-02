@@ -181,7 +181,24 @@ async function main() {
         const videoFileName = path.basename(videoFilePath);
         console.log(`Processing ${videoFileName}...`);
 
-        const { metadata, rows } = await analyzeVideo(videoFilePath, detector, drawSide);
+        // One bad file (e.g. a truncated/corrupt video) used to crash
+        // the whole batch here: the error propagated straight past this
+        // loop to main()'s top-level catch, which meant every video
+        // after the failing one never got processed, AND _summary.csv
+        // (written once, after the loop) never got written at all --
+        // silently discarding every successful result from this run,
+        // not just the failed video. Caught here instead: log which
+        // video failed and why, record a FAILED row in the summary
+        // (visible, not silently dropped), and keep going.
+        let metadata;
+        let rows;
+        try {
+            ({ metadata, rows } = await analyzeVideo(videoFilePath, detector, drawSide));
+        } catch (error) {
+            console.error(`  Failed: ${error.message ?? error}\n`);
+            summaryRows.push([videoFileName, "", "", "", drawSide, "", "", "", "", "", "FAILED"]);
+            continue;
+        }
 
         const csvHeader = [
             "timestamp_ms",
@@ -241,7 +258,8 @@ async function main() {
             peakVelocityRow ? peakVelocityRow.velocityShoulderWidthsPerSecond.toFixed(2) : "",
             peakVelocityRow ? peakVelocityRow.timestampMilliseconds.toFixed(0) : "",
             minDistanceRow ? minDistanceRow.distancePixels.toFixed(1) : "",
-            minDistanceRow ? minDistanceRow.timestampMilliseconds.toFixed(0) : ""
+            minDistanceRow ? minDistanceRow.timestampMilliseconds.toFixed(0) : "",
+            "OK"
         ]);
 
         console.log(
@@ -265,7 +283,8 @@ async function main() {
         "peak_velocity_shoulder_widths_per_s",
         "peak_velocity_timestamp_ms",
         "min_wrist_to_mouth_distance_px",
-        "min_distance_timestamp_ms"
+        "min_distance_timestamp_ms",
+        "status"
     ];
     writeCsv(path.join(SIGNALS_FOLDER, "_summary.csv"), summaryHeader, summaryRows);
 

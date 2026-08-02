@@ -67,9 +67,19 @@ async function main() {
         const videoFileName = path.basename(videoFilePath);
         console.log(`${videoFileName}:`);
 
-        const poseFrames = [];
-        for await (const poseFrame of analyzeShotVideo(videoFilePath, detector)) {
-            poseFrames.push(poseFrame);
+        // Same reasoning as build-calibration-dataset.cjs: one bad file
+        // used to crash the whole batch and silently skip every video
+        // after it. Caught here so a single corrupt/unreadable video
+        // doesn't take the rest of the run down with it.
+        let poseFrames;
+        try {
+            poseFrames = [];
+            for await (const poseFrame of analyzeShotVideo(videoFilePath, detector)) {
+                poseFrames.push(poseFrame);
+            }
+        } catch (error) {
+            console.error(`  Failed: ${error.message ?? error}\n`);
+            continue;
         }
 
         const segments = detectShootingPhases(poseFrames, { drawSide });
