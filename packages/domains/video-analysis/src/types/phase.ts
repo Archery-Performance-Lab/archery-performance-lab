@@ -1,14 +1,31 @@
 /**
  * Shooting Phase
  *
- * Reviewed and corrected against real coaching methodology (Tommaso
- * Franchini, FITARCO first-level coach, tessera 151218) — this is no
- * longer a guessed taxonomy. Compared to the original six-phase
- * placeholder, "Nocking" was dropped ("non influenza il gesto
- * dell'arciere" — it never affects the archer's technique and is
- * never evaluated), "Stance" was kept but widened in scope, and
+ * Reviewed and corrected against real coaching methodology: first
+ * with Tommaso Franchini (FITARCO first-level coach, tessera 151218),
+ * then cross-checked against a written manual by Filippo Clini
+ * (Italian national team coach, "Livello Avanzato per l'istruttore di
+ * tiro con l'arco"). "Stance" was kept but widened in scope, and
  * "Aiming" / "Expansion" were added as their own phases rather than
  * folded into "Drawing" / "Release".
+ *
+ * "Nocking" went through a real back-and-forth worth recording: it
+ * was dropped first ("non influenza il gesto dell'arciere" — it never
+ * affects the archer's technique), then Clini's manual turned out to
+ * treat it as a real checkpoint after all — not for a single "correct"
+ * technique (there isn't one; every archer nocks differently), but for
+ * *consistency*: an archer who nocks the arrow resting the bow on
+ * their foot in training but changes that habit under competition
+ * stress wastes energy and risks disturbing the rest of the shot.
+ * Re-added on that basis. Practically, this means Nocking's quality
+ * check is not "does it match a fixed form" the way Anchor's alignment
+ * checks are, but "does it match *this archer's own* usual pattern" —
+ * a comparison against their history, not a universal standard.
+ *
+ * "SetUp" was added directly from Clini's manual: a distinct moment
+ * between Nocking and PreDraw, establishing the string hand's finger
+ * position (first joint, all three fingers) and the bow hand's
+ * position on the grip, before the arms are raised at all.
  *
  * Per phase:
  *
@@ -17,8 +34,13 @@
  *   must stay still throughout the whole shot: the string comes to
  *   meet the face at anchor, the archer does not move the head to
  *   meet the string.
- * - PreDraw: the moment that anticipates the actual draw, before any
- *   real string movement.
+ * - Nocking: placing the arrow on the string. No single correct form
+ *   — evaluate consistency against the archer's own usual pattern,
+ *   not against a fixed technique.
+ * - SetUp: positioning the string-hand fingers (first joint, all
+ *   three) and the bow hand on the grip, before raising the bow.
+ * - PreDraw: the moment that anticipates the actual draw — raising
+ *   the bow — before any real string movement.
  * - Drawing: from the start of the pull to anchor. Evaluated on
  *   execution speed and movement fluidity.
  * - Anchor: the moment of contact under the chin — evaluated both for
@@ -55,6 +77,8 @@
  */
 export type ShootingPhase =
     | "Stance"
+    | "Nocking"
+    | "SetUp"
     | "PreDraw"
     | "Drawing"
     | "Anchor"

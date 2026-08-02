@@ -63,9 +63,9 @@ the script.
   seconds for exactly this) — thresholds were set from one video and
   need a coach confirming the detected segments against many more
   real shots before they can be trusted.
-- Detect Stance, PreDraw, Drawing, Aiming and Expansion — see
-  `phase-detection/` below for why they're not detected yet and what
-  signals each would likely need.
+- Detect Stance, Nocking, SetUp, PreDraw, Drawing, Aiming and
+  Expansion — see `phase-detection/` below for why they're not
+  detected yet and what signals each would likely need.
 - An `ArcherHandedness` (or similar) concept: which BlazePose keypoint
   is the "string arm" vs. "bow arm" depends on whether the archer is
   right- or left-handed, and on which side of the archer the camera
@@ -82,11 +82,14 @@ the script.
   the field as optional since it's shared across models, so
   `estimatePoseFrame()` falls back to a positional placeholder if it's
   ever missing rather than throwing.
-- `types/phase.ts` — `ShootingPhase` (Stance, PreDraw, Drawing,
-  Anchor, Aiming, Expansion, Release, FollowThrough), reviewed and
-  corrected against real coaching methodology (Tommaso Franchini,
-  FITARCO tessera 151218) — see the type's own doc comment for what
-  each phase means and how it should be detected.
+- `types/phase.ts` — `ShootingPhase` (Stance, Nocking, SetUp, PreDraw,
+  Drawing, Anchor, Aiming, Expansion, Release, FollowThrough),
+  reviewed and corrected against real coaching methodology (Tommaso
+  Franchini, FITARCO tessera 151218; cross-checked against a written
+  manual by Filippo Clini, Italian national team coach) — see the
+  type's own doc comment for what each phase means, how it should be
+  detected, and the real back-and-forth on whether Nocking belongs at
+  all.
 - `types/shot-sequence.ts` — `ShotSequenceAnalysis`, the full result
   for one shot's video.
 - `calculations/timing` — `calculatePhaseDurations()`, pure
@@ -172,10 +175,12 @@ the script.
   approach to the face that wasn't really Anchor). Its thresholds
   (`PhaseDetectionOptions`, all with defaults) were derived from
   exactly one usable calibration video — real numbers, but a sample
-  size of one, not a validated model. Stance, PreDraw, Drawing, Aiming
-  and Expansion are not detected: Stance/PreDraw happen before any
-  string-hand motion the current signals capture (would need
-  something like bow-arm elevation angle instead); Aiming and
+  size of one, not a validated model. Stance, Nocking, SetUp, PreDraw,
+  Drawing, Aiming and Expansion are not detected: Stance/Nocking/
+  SetUp/PreDraw all happen before any string-hand motion the current
+  signals capture (would need something like bow-arm elevation angle,
+  or per-archer nocking-pattern comparison for Nocking specifically —
+  see types/phase.ts); Aiming and
   Expansion both happen with the wrist already near the face, making
   them indistinguishable from Anchor using only wrist distance/
   velocity — Expansion in particular is driven by scapula rotation,
