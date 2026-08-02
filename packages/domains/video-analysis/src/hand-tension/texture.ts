@@ -53,6 +53,25 @@ const MINIMUM_REGION_SIZE_PIXELS = 3;
  * being trusted for anything, same discipline as every other
  * threshold in this package.
  *
+ * That check happened, and the hypothesis did not survive it. A real
+ * run against the slow-motion Kim Woojin video found a ~10x difference
+ * between its highest and lowest readings (243 vs. 21) between two
+ * frames that looked visually near-identical at anchor. Reconstructing
+ * the exact crops (using the logged crop coordinates — see
+ * scripts/inspect-hand-tension.cjs) showed why: the high-reading crop
+ * happened to include the sharp, high-contrast boundary between the
+ * hand/glove and the archer's bright white shirt collar behind it,
+ * while the low-reading crop stayed on smoother skin. The metric is
+ * dominated by whichever strong incidental edge (clothing, background)
+ * happens to fall inside the crop, not by the much subtler texture
+ * difference tendons would actually produce. This function and its
+ * crop/region building blocks are being kept — they're real, tested,
+ * general-purpose primitives — but this specific use (a plain,
+ * unweighted Laplacian variance over a square crop as a tension proxy)
+ * is a negative result, not something to build on as-is. Paused, not
+ * resolved: see README.md's hand-tension section for where this was
+ * left and the options considered before stopping.
+ *
  * Throws if the region is smaller than the 3x3 kernel needs — a
  * degenerate crop (e.g. a keypoint right at a frame's corner with a
  * tiny `sizePixels`) should fail loudly, not silently produce a

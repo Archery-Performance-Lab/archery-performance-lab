@@ -107,6 +107,17 @@
  *   human-judgment-only criterion for now — gets built is an open
  *   question, not decided here. Detection is a concern for whatever
  *   consumes this type, not something the type itself encodes.
+ *
+ *   A first, real attempt at tendon-visibility detection was made and
+ *   paused, not resolved — see `hand-tension/`'s doc comments and
+ *   README.md. A plain Laplacian-variance texture metric over a crop
+ *   around the wrist turned out to be dominated by incidental
+ *   high-contrast edges nearby (clothing, background) rather than the
+ *   much subtler texture difference tendons actually produce — a real,
+ *   checked-against-real-footage negative result, not a guess. The
+ *   underlying crop/texture primitives are kept as general building
+ *   blocks; this specific use of them is not something to build on
+ *   as-is.
  * - FollowThrough: continued expansion after release, the string-hand
  *   sliding back along the neck, while the bow arm keeps its forward
  *   push so the bow kicks forward horizontally.

@@ -301,3 +301,29 @@ the script.
   npx tsc -p tsconfig.test.json
   node scripts/inspect-hand-tension.cjs right
   ```
+
+  **Status: paused, not resolved.** That validation check happened,
+  against the slow-motion Kim Woojin video, and the hypothesis did not
+  survive it. The highest and lowest readings differed by ~10x (243
+  vs. 21) between two frames that looked visually near-identical at
+  anchor. Reconstructing the exact crops from their logged coordinates
+  showed why: the high-reading crop happened to include the sharp,
+  high-contrast boundary between the hand/glove and the archer's
+  bright white shirt collar behind it, while the low-reading crop
+  stayed on smoother skin. Plain Laplacian variance over an
+  unconstrained square crop is dominated by whichever strong
+  incidental edge (clothing, background) happens to fall inside it,
+  not by the much subtler texture difference real tendons would
+  produce. `computeCropRegionAroundKeypoint()`/`cropFrameRegion()`/
+  `computeHandTensionMetric()` are kept — real, tested, general-purpose
+  primitives — but this specific use of them is a negative result, not
+  something to build on as-is.
+
+  Considered and left open, not decided: a tighter/smaller crop
+  (reduces but doesn't eliminate the risk of catching a clothing
+  edge); excluding the strongest edge responses before computing
+  variance, so one sharp boundary can't dominate the number; or
+  dropping this approach and treating Release finger-tension as a
+  human-judgment-only criterion for now (see `types/phase.ts`).
+  Work paused here — see `types/phase.ts`'s hand-tension note for the
+  same summary closer to the code.
