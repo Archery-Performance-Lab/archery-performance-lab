@@ -96,7 +96,11 @@ async function analyzeVideo(videoFilePath, detector, drawSide) {
                     timestampMilliseconds: poseFrame.timestampMilliseconds,
                     handTensionMetric: null,
                     shoulderWidthPixels,
-                    cropSizePixels: null
+                    cropSizePixels: null,
+                    wristXPixels: wristKeypoint ? wristKeypoint.xPixels : null,
+                    wristYPixels: wristKeypoint ? wristKeypoint.yPixels : null,
+                    cropXPixels: null,
+                    cropYPixels: null
                 });
                 continue;
             }
@@ -121,7 +125,11 @@ async function analyzeVideo(videoFilePath, detector, drawSide) {
                 timestampMilliseconds: poseFrame.timestampMilliseconds,
                 handTensionMetric,
                 shoulderWidthPixels,
-                cropSizePixels
+                cropSizePixels,
+                wristXPixels: wristKeypoint.xPixels,
+                wristYPixels: wristKeypoint.yPixels,
+                cropXPixels: region.xPixels,
+                cropYPixels: region.yPixels
             });
         } finally {
             frame.dispose();
@@ -164,13 +172,21 @@ async function main() {
         "timestamp_ms",
         "hand_tension_metric",
         "shoulder_width_px",
-        "crop_size_px"
+        "crop_size_px",
+        "wrist_x_px",
+        "wrist_y_px",
+        "crop_x_px",
+        "crop_y_px"
     ];
     const csvRows = rows.map((row) => [
         row.timestampMilliseconds.toFixed(1),
         formatNumberOrBlank(row.handTensionMetric, 3),
         formatNumberOrBlank(row.shoulderWidthPixels, 1),
-        formatNumberOrBlank(row.cropSizePixels, 1)
+        formatNumberOrBlank(row.cropSizePixels, 1),
+        formatNumberOrBlank(row.wristXPixels, 1),
+        formatNumberOrBlank(row.wristYPixels, 1),
+        formatNumberOrBlank(row.cropXPixels, 1),
+        formatNumberOrBlank(row.cropYPixels, 1)
     ]);
     const csvFilePath = path.join(SIGNALS_FOLDER, `${path.parse(videoFilePath).name}_hand-tension.csv`);
     writeCsv(csvFilePath, csvHeader, csvRows);
@@ -186,14 +202,23 @@ async function main() {
         );
         console.log(
             `\nHighest tension metric: ${peakRow.handTensionMetric.toFixed(3)} at ` +
-                `t=${peakRow.timestampMilliseconds.toFixed(0)}ms. ` +
-                `Lowest: ${minRow.handTensionMetric.toFixed(3)} at t=${minRow.timestampMilliseconds.toFixed(0)}ms.`
+                `t=${peakRow.timestampMilliseconds.toFixed(0)}ms, crop at ` +
+                `(${peakRow.cropXPixels.toFixed(0)}, ${peakRow.cropYPixels.toFixed(0)}), ` +
+                `${peakRow.cropSizePixels.toFixed(0)}px square.`
+        );
+        console.log(
+            `Lowest: ${minRow.handTensionMetric.toFixed(3)} at t=${minRow.timestampMilliseconds.toFixed(0)}ms, ` +
+                `crop at (${minRow.cropXPixels.toFixed(0)}, ${minRow.cropYPixels.toFixed(0)}), ` +
+                `${minRow.cropSizePixels.toFixed(0)}px square.`
         );
         console.log(
             "Scrub the real video to both of those timestamps: does the higher-metric moment " +
                 "actually look tenser (visible tendons) than the lower one? That comparison is " +
                 "the whole point of this script — the metric means nothing until checked against " +
-                "what a human sees."
+                "what a human sees. The crop coordinates (top-left x/y, in the original frame's " +
+                "pixels) are printed above and saved per-frame in the CSV so the exact analyzed " +
+                "region can be reconstructed and inspected directly, not just guessed at from the " +
+                "full frame."
         );
     }
 }
