@@ -686,6 +686,35 @@ the script.
   (`left_heel`/`right_foot_index` circles present in the generated
   SVG). `tsc -p tsconfig.test.json` clean, all 66 tests still pass.
 
+  **Per-archer threshold calibration.** Direct follow-up request:
+  "ogni persona ha una fisionomia diversa... non è corretto fissare
+  delle metriche che corrispondano a tutti i corpi" — `DEFAULT_POSTURE_METRICS`
+  was already documented as an unvalidated starting point (see
+  `posture-analysis/` above), but the player only let you SEE that gap,
+  not do anything about it. A new "Soglie" panel makes all six metrics'
+  `idealRangeDegrees`/`warnRangeDegrees` directly editable, with a
+  "Cattura come ideale" button that mirrors ghiggo's own "Cattura"
+  feature exactly — ±3° ideal / ±12° warn around the CURRENTLY
+  DISPLAYED frame's real values, skipping any metric with no value in
+  that frame — rather than inventing a different capture convention of
+  its own. "Ripristina soglie default" reverts to the shipped
+  defaults. Export/import as JSON (same pattern as
+  `tools/overhead-alignment.html`) lets a coach keep one calibration
+  file per archer across sessions; import merges by metric `id` so an
+  older export missing a metric cannot blank it out. `renderCurrentFrame()`
+  now recomputes `analyzePosture()` fresh every render against the live
+  `customMetricDefinitions`, rather than reading the ranges baked into
+  the JSON by `build-posture-timeline.cjs` at generation time (which
+  would otherwise go stale the moment a threshold is edited in the
+  browser). **Verified**: extracted the inline calibration logic via
+  Node's `vm` module and confirmed, against a real frame from
+  `IMG_1219_timeline.json`, that a frame with two metrics reading
+  "warning" under the defaults reclassifies as "ok" for all six
+  metrics immediately after "Cattura come ideale" on that same frame —
+  the capture mechanism does what it claims, not just "runs without
+  throwing". `tsc -p tsconfig.test.json` clean, all 66 tests still
+  pass, HTML tag balance checked.
+
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check
   (bow hand / draw elbow / head forming a triangle, plus a

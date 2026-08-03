@@ -40,7 +40,7 @@
      it has no reason to. */
   .video-wrap #overlay circle { pointer-events: all; cursor: grab; }
   .video-wrap #overlay circle:active { cursor: grabbing; }
-  .panel { min-width: 300px; max-width: 380px; }
+  .panel { min-width: 300px; max-width: 420px; }
   #mismatchWarning { display: none; background: #7f1d1d; color: #fecaca; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 8px 0; max-width: 900px; line-height: 1.5; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
   th, td { text-align: left; padding: 3px 8px 3px 0; border-bottom: 1px solid #1e293b; }
@@ -50,6 +50,10 @@
   button:hover:not(:disabled) { background: #334155; }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
   #frameInfo { font-size: 13px; color: #94a3b8; margin: 8px 0 16px; font-family: monospace; }
+  #thresholdsTable input[type="number"] { width: 48px; background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 3px; padding: 2px 4px; font-size: 12px; }
+  #thresholdsTable th, #thresholdsTable td { padding: 4px 4px 4px 0; }
+  .thresholds-toolbar { display: flex; gap: 6px; margin: 8px 0 10px; flex-wrap: wrap; }
+  .thresholds-toolbar button, .thresholds-toolbar label { font-size: 12px; }
 </style>
 </head>
 <body>
@@ -69,7 +73,12 @@
   segnalare che è stato corretto a mano, e le metriche a destra si
   ricalcolano subito con la posizione corretta. "Ripristina fotogramma"
   annulla tutte le correzioni fatte sul fotogramma corrente, tornando ai
-  valori rilevati automaticamente.
+  valori rilevati automaticamente. Le soglie "ideale"/"warning" di ogni
+  metrica (sezione "Soglie" a destra) sono modificabili: i numeri di
+  default vengono da un'app di terze parti e non corrispondono
+  necessariamente a questo arciere. "Cattura come ideale" prende i
+  valori del fotogramma corrente e li usa come nuovo centro delle
+  soglie — utile su un fotogramma che consideri tecnicamente corretto.
 </p>
 
 <div class="toolbar">
@@ -102,6 +111,32 @@
     <h2>Metriche (fotogramma corrente)</h2>
     <table id="metricsTable">
       <thead><tr><th>Metrica</th><th>Valore</th><th>Stato</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Soglie (taratura per questo arciere)</h2>
+    <p class="note" style="max-width: 400px;">
+      Ogni corpo è diverso: i range di default (da "Archery Posture
+      Tracker") non sono validati per nessun arciere specifico. Modifica
+      i numeri a mano, oppure vai su un fotogramma tecnicamente corretto
+      e usa "Cattura come ideale".
+    </p>
+    <div class="thresholds-toolbar">
+      <button id="captureIdealBtn" disabled>Cattura come ideale</button>
+      <button id="resetThresholdsBtn">Ripristina soglie default</button>
+      <button id="exportThresholdsBtn">Esporta soglie (JSON)</button>
+      <label>Importa: <input type="file" id="importThresholdsInput" accept="application/json" /></label>
+    </div>
+    <table id="thresholdsTable">
+      <thead>
+        <tr>
+          <th>Metrica</th>
+          <th>Ideale min</th>
+          <th>Ideale max</th>
+          <th>Warn min</th>
+          <th>Warn max</th>
+        </tr>
+      </thead>
       <tbody></tbody>
     </table>
   </div>
@@ -443,6 +478,33 @@
     });
   }
 
+  // ---- Per-archer threshold calibration ----
+  //
+  // Why this exists: DEFAULT_POSTURE_METRICS is a real, working
+  // starting point copied from ghiggo's own tool (see metrics.ts), but
+  // "every body is different, almost unrepeatable" (the exact reason
+  // given for this feature) — a fixed set of ranges cannot be correct
+  // for every archer's own physiology. ghiggo's own reference tool
+  // agrees: it never treats its defaults as universal either, and
+  // rebuilds them per-archer via its own "Cattura" (capture) feature —
+  // see metrics.ts's doc comment for this being flagged as a known gap
+  // since this project's DEFAULT_POSTURE_METRICS was first ported.
+  // customMetricDefinitions is a mutable, deep-cloned working copy —
+  // never mutate DEFAULT_POSTURE_METRICS itself, so "Ripristina soglie
+  // default" always has a clean original to go back to.
+  let customMetricDefinitions = DEFAULT_POSTURE_METRICS.map((definition) => ({
+    id: definition.id,
+    name: definition.name,
+    idealRangeDegrees: [...definition.idealRangeDegrees],
+    warnRangeDegrees: [...definition.warnRangeDegrees]
+  }));
+
+  // The most recently computed metric results for whichever frame is
+  // currently displayed — kept around so "Cattura come ideale" (below)
+  // can read the values it needs without recomputing analyzePosture()
+  // a second time just for that.
+  let lastPostureResults = [];
+
   let timeline = null;
   let currentFrameIndex = 0;
 
@@ -455,6 +517,11 @@
   const nextFrameBtn = document.getElementById("nextFrameBtn");
   const resetFrameBtn = document.getElementById("resetFrameBtn");
   const mismatchWarning = document.getElementById("mismatchWarning");
+  const captureIdealBtn = document.getElementById("captureIdealBtn");
+  const resetThresholdsBtn = document.getElementById("resetThresholdsBtn");
+  const exportThresholdsBtn = document.getElementById("exportThresholdsBtn");
+  const importThresholdsInput = document.getElementById("importThresholdsInput");
+  const thresholdsTableBody = document.querySelector("#thresholdsTable tbody");
 
   // Real bug this caught in practice, not a hypothetical: loading a
   // timeline JSON built from ONE video (e.g. the Kim Woojin calibration
@@ -525,6 +592,11 @@
     playPauseBtn.disabled = !ready;
     prevFrameBtn.disabled = !ready;
     nextFrameBtn.disabled = !ready;
+    // "Cattura come ideale" needs a currently-displayed frame's real
+    // values (lastPostureResults) to capture from — the threshold
+    // editing/reset/export/import controls do not depend on any
+    // loaded video or JSON, so they stay enabled from page load.
+    captureIdealBtn.disabled = !ready;
   }
 
   // Binary search: timeline.frames is sorted by timestampMilliseconds
@@ -553,16 +625,27 @@
     currentFrameIndex = findFrameIndexForTime(video.currentTime);
     const frame = timeline.frames[currentFrameIndex];
 
+    // Recomputed fresh from the raw keypoints on every render, against
+    // whatever customMetricDefinitions currently are — NOT read from
+    // frame.postureResults (which would still hold the ranges baked in
+    // by build-posture-timeline.cjs at JSON-generation time, using
+    // DEFAULT_POSTURE_METRICS, and would go stale the moment thresholds
+    // are edited here). The recomputation itself is cheap (a handful of
+    // angle calculations), so doing it every frame/render is not a
+    // real cost.
+    const postureResults = analyzePosture(frame, timeline.drawSide, customMetricDefinitions);
+    lastPostureResults = postureResults;
+
     const svg = renderSkeletonOverlaySvg({
       keypoints: frame.keypoints,
-      postureResults: frame.postureResults,
+      postureResults,
       drawSide: timeline.drawSide,
       widthPixels: timeline.widthPixels,
       heightPixels: timeline.heightPixels
     });
     overlay.innerHTML = svg || "";
 
-    updateMetricsTable(frame.postureResults);
+    updateMetricsTable(postureResults);
     frameInfo.textContent =
       `t = ${frame.timestampMilliseconds.toFixed(0)} ms — fotogramma ${currentFrameIndex + 1}/${timeline.frames.length}`;
     // Each frame tracks its own correction state independently (see
@@ -715,7 +798,9 @@
     keypoint.confidenceScore = 1;
     keypoint.manuallyCorrected = true;
 
-    frame.postureResults = analyzePosture(frame, timeline.drawSide);
+    // No need to touch frame.postureResults here — renderCurrentFrame()
+    // (called next) recomputes it fresh from frame.keypoints on every
+    // call regardless.
     renderCurrentFrame();
   }
 
@@ -725,8 +810,141 @@
     if (!frame._originalKeypoints) return;
     frame.keypoints = frame._originalKeypoints;
     delete frame._originalKeypoints;
-    frame.postureResults = analyzePosture(frame, timeline.drawSide);
     renderCurrentFrame();
+  });
+
+  // ---- Per-archer threshold calibration: UI wiring ----
+  //
+  // renderThresholdsTable() is only called when customMetricDefinitions
+  // itself changes shape (initial load, reset, import) — editing a
+  // number in an existing input does not need to rebuild the table,
+  // only update the underlying definition (see the delegated "input"
+  // listener below), which is why this does not run on every
+  // renderCurrentFrame() call: rebuilding the table on every video
+  // frame would fight the user for focus on whatever input they are
+  // mid-edit on.
+  function renderThresholdsTable() {
+    thresholdsTableBody.innerHTML = customMetricDefinitions.map((definition) => `
+      <tr>
+        <td>${escapeHtml(definition.name)}</td>
+        <td><input type="number" step="0.1" value="${definition.idealRangeDegrees[0]}" data-metric-id="${definition.id}" data-field="idealMin" /></td>
+        <td><input type="number" step="0.1" value="${definition.idealRangeDegrees[1]}" data-metric-id="${definition.id}" data-field="idealMax" /></td>
+        <td><input type="number" step="0.1" value="${definition.warnRangeDegrees[0]}" data-metric-id="${definition.id}" data-field="warnMin" /></td>
+        <td><input type="number" step="0.1" value="${definition.warnRangeDegrees[1]}" data-metric-id="${definition.id}" data-field="warnMax" /></td>
+      </tr>
+    `).join("");
+  }
+
+  renderThresholdsTable();
+
+  // Delegated on the (stable) tbody rather than on each <input>, same
+  // reasoning as the pointerdown delegation on #overlay above: the
+  // inputs themselves only get replaced when renderThresholdsTable()
+  // rebuilds the table (reset/import), and a listener on a specific
+  // <input> element would not survive that.
+  thresholdsTableBody.addEventListener("input", (event) => {
+    const input = event.target;
+    if (!input || input.tagName !== "INPUT") return;
+    const metricId = input.getAttribute("data-metric-id");
+    const field = input.getAttribute("data-field");
+    const value = Number(input.value);
+    if (Number.isNaN(value)) return;
+    const definition = customMetricDefinitions.find((d) => d.id === metricId);
+    if (!definition) return;
+    if (field === "idealMin") definition.idealRangeDegrees[0] = value;
+    if (field === "idealMax") definition.idealRangeDegrees[1] = value;
+    if (field === "warnMin") definition.warnRangeDegrees[0] = value;
+    if (field === "warnMax") definition.warnRangeDegrees[1] = value;
+    renderCurrentFrame();
+  });
+
+  // Mirrors ghiggo's own "Cattura" feature (documented in metrics.ts):
+  // takes the CURRENTLY DISPLAYED frame's already-computed values and
+  // rebuilds each metric's ranges around them — ±3° for "ideale", ±12°
+  // for "warning", the exact tolerances ghiggo itself uses. A metric
+  // with no value in this frame (a keypoint it needs was not
+  // confidently detected here) is left untouched rather than guessed
+  // at — capturing "nothing" would be worse than not capturing at all.
+  const CAPTURE_IDEAL_TOLERANCE_DEGREES = 3;
+  const CAPTURE_WARN_TOLERANCE_DEGREES = 12;
+
+  captureIdealBtn.addEventListener("click", () => {
+    if (!timeline) return;
+    lastPostureResults.forEach((result) => {
+      if (result.valueDegrees === null) return;
+      const definition = customMetricDefinitions.find((d) => d.id === result.id);
+      if (!definition) return;
+      definition.idealRangeDegrees = [
+        result.valueDegrees - CAPTURE_IDEAL_TOLERANCE_DEGREES,
+        result.valueDegrees + CAPTURE_IDEAL_TOLERANCE_DEGREES
+      ];
+      definition.warnRangeDegrees = [
+        result.valueDegrees - CAPTURE_WARN_TOLERANCE_DEGREES,
+        result.valueDegrees + CAPTURE_WARN_TOLERANCE_DEGREES
+      ];
+    });
+    renderThresholdsTable();
+    renderCurrentFrame();
+  });
+
+  resetThresholdsBtn.addEventListener("click", () => {
+    customMetricDefinitions = DEFAULT_POSTURE_METRICS.map((definition) => ({
+      id: definition.id,
+      name: definition.name,
+      idealRangeDegrees: [...definition.idealRangeDegrees],
+      warnRangeDegrees: [...definition.warnRangeDegrees]
+    }));
+    renderThresholdsTable();
+    renderCurrentFrame();
+  });
+
+  // Export/import as JSON: same Blob + <a download> / FileReader
+  // pattern already established in tools/overhead-alignment.html, so a
+  // coach can save one calibration file per archer and reload it in a
+  // later session instead of re-running "Cattura" from scratch every
+  // time.
+  exportThresholdsBtn.addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(customMetricDefinitions, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "posture-thresholds.json";
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+
+  importThresholdsInput.addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let imported;
+      try {
+        imported = JSON.parse(reader.result);
+      } catch (error) {
+        alert("File JSON non valido: " + error.message);
+        return;
+      }
+      if (!Array.isArray(imported)) {
+        alert("File JSON non valido: attesa una lista di metriche.");
+        return;
+      }
+      // Merge by id rather than replacing wholesale: an imported file
+      // from an older version of this page with fewer/renamed metrics
+      // should not silently delete whichever metrics it does not
+      // mention.
+      imported.forEach((importedDefinition) => {
+        const definition = customMetricDefinitions.find((d) => d.id === importedDefinition.id);
+        if (!definition || !Array.isArray(importedDefinition.idealRangeDegrees) || !Array.isArray(importedDefinition.warnRangeDegrees)) {
+          return;
+        }
+        definition.idealRangeDegrees = [...importedDefinition.idealRangeDegrees];
+        definition.warnRangeDegrees = [...importedDefinition.warnRangeDegrees];
+      });
+      renderThresholdsTable();
+      renderCurrentFrame();
+    };
+    reader.readAsText(file);
   });
 </script>
 </body>
