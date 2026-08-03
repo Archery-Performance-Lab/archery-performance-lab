@@ -572,27 +572,50 @@ the script.
   already visible, rather than guessing a timestamp blind the way the
   now-abandoned single-frame workflow required.
 
-  This page loads `scripts/lib/render-skeleton-overlay-svg.cjs`
-  directly via a plain `<script src="...">` tag rather than
-  duplicating its logic by hand (unlike `tools/overhead-alignment.html`,
-  which has no single file it could load that way — its formulas are
-  scattered across `src/biomechanics/geometry.ts`). That file was
-  given a small dual-environment guard (`module.exports` only runs
-  where `module` actually exists) so the exact same code serves both
-  the Node scripts and this static page — one source of truth, not
-  two copies to keep in sync.
+  **Correction (real Safari test, not a hypothesis):** this page
+  originally loaded `scripts/lib/render-skeleton-overlay-svg.cjs`
+  directly via a plain `<script src="../scripts/lib/render-skeleton-overlay-svg.cjs">`
+  tag, so the rendering logic would exist in exactly one file rather
+  than being duplicated by hand. That worked in Chrome, but the page
+  would not open at all in Safari on the real Mac. The cause wasn't
+  the dual-environment guard — it's that the `<script src>` path walks
+  UP out of `tools/` into a sibling folder (`../scripts/lib/...`), and
+  Safari's `file://` security sandbox refuses to load a subresource
+  from a directory above the page's own folder (Chrome is more
+  permissive here, which is why this went unnoticed until a real
+  Safari run). Properly avoiding that would mean serving this package
+  over a local HTTP server just to open one static page, which breaks
+  the project's "just double-click it, no dependencies" design for
+  this tool. So the fix copies the same rendering functions directly
+  into `posture-video-player.html`'s own inline `<script>` block —
+  the same tradeoff already made deliberately for
+  `tools/overhead-alignment.html`'s math helpers, now applied here
+  too. `scripts/lib/render-skeleton-overlay-svg.cjs` is unchanged and
+  still the one `inspect-posture.cjs` uses via `require()`; only the
+  browser copy moved into the page itself. Its dual-environment
+  `module.exports` guard is left in place (harmless, and would still
+  matter if a future browser tool were served over real HTTP rather
+  than opened as a local file), but nothing currently relies on it
+  working in a browser — "one source of truth" for this particular
+  file did not survive contact with Safari's local-file security
+  model.
 
-  **Verification**: JS syntax checked, HTML tag balance checked, and
-  the dual-environment loading was verified directly — running
-  `render-skeleton-overlay-svg.cjs` through Node's `vm` module with no
-  `module` global defined (simulating a browser `<script>` tag, not
-  just asserting it should work) produced a working global function
-  that rendered a correct SVG. The full pipeline — a real
+  **Verification**: JS syntax checked (the page's whole inline
+  `<script>` block parses as valid JavaScript, extracted and run
+  through Node's `Function` constructor), HTML tag balance checked.
+  The dual-environment loading claim from the first version of this
+  feature was verified via Node's `vm` module with no `module` global
+  defined (simulating a browser `<script>` tag) — that verification
+  was real, but it could not have caught the actual bug, since the
+  `vm` simulation never modeled Safari's directory-traversal
+  restriction on `file://` subresource loading; it only proved the
+  *file's own* code was environment-agnostic, not that the browser
+  would agree to fetch it from that path. The full pipeline — a real
   `build-posture-timeline.cjs` run, and actually pressing play in
-  `posture-video-player.html` — could not be tested from this
-  sandbox for the same reason every other BlazePose-dependent script
-  in this package couldn't (no network access to `tfhub.dev`); needs a
-  real run on the Mac.
+  `posture-video-player.html` — could not be tested from this sandbox
+  for the same reason every other BlazePose-dependent script in this
+  package couldn't (no network access to `tfhub.dev`); needs a real
+  run on the Mac, including confirming the page now opens in Safari.
 
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check

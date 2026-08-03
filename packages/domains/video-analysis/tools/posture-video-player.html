@@ -71,8 +71,176 @@
   </div>
 </div>
 
-<script src="../scripts/lib/render-skeleton-overlay-svg.cjs"></script>
 <script>
+  // NOTE — duplicated from scripts/lib/render-skeleton-overlay-svg.cjs
+  // on purpose, not by mistake. The original design loaded that file
+  // directly via <script src="../scripts/lib/render-skeleton-overlay-svg.cjs">
+  // so there would be only one copy of this logic. That broke in Safari:
+  // opening this page as a local file:// page, Safari's WebKit sandbox
+  // for file:// pages refuses to load a subresource from a PARENT
+  // directory (../scripts/lib/...) relative to the page's own folder —
+  // Chrome is more permissive about this and had shown no problem, which
+  // is how the issue went undetected until a real Safari test. Rather
+  // than work around Safari's file:// sandbox (e.g. requiring a local
+  // HTTP server just to open this page, which would break the project's
+  // "just double-click and open it" no-dependency design), this copies
+  // the function bodies in directly — the same tradeoff already made
+  // deliberately in tools/overhead-alignment.html for its own math
+  // helpers. scripts/lib/render-skeleton-overlay-svg.cjs itself is
+  // unchanged and still the one used by inspect-posture.cjs via
+  // require() — only the browser copy moved here. Keep the two in sync
+  // by hand if the rendering logic changes.
+  function escapeXmlText(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&apos;");
+  }
+
+  const DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
+
+  const SKELETON_CONNECTIONS = [
+    ["left_shoulder", "right_shoulder"],
+    ["left_shoulder", "left_elbow"],
+    ["left_elbow", "left_wrist"],
+    ["right_shoulder", "right_elbow"],
+    ["right_elbow", "right_wrist"],
+    ["left_shoulder", "left_hip"],
+    ["right_shoulder", "right_hip"],
+    ["left_hip", "right_hip"],
+    ["left_hip", "left_knee"],
+    ["left_knee", "left_ankle"],
+    ["right_hip", "right_knee"],
+    ["right_knee", "right_ankle"],
+    ["nose", "left_ear"],
+    ["nose", "right_ear"],
+    ["left_ear", "left_shoulder"],
+    ["right_ear", "right_shoulder"]
+  ];
+
+  function statusColor(status) {
+    if (status === "ok") return "#4ade80";
+    if (status === "warning") return "#fb923c";
+    if (status === "outOfRange") return "#f87171";
+    return "#94a3b8";
+  }
+
+  function findMetric(postureResults, id) {
+    return (postureResults || []).find((result) => result.id === id) || null;
+  }
+
+  function angleLabelMarkup(elbowKeypoint, metricResult, label) {
+    const color = statusColor(metricResult.status);
+    const x = elbowKeypoint.xPixels + 10;
+    const y = elbowKeypoint.yPixels;
+    return (
+      `<text x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="18" font-weight="bold" ` +
+      `fill="${color}" font-family="system-ui, sans-serif">${metricResult.valueDegrees.toFixed(1)}°</text>\n  ` +
+      `<text x="${x.toFixed(1)}" y="${(y + 12).toFixed(1)}" font-size="13" fill="rgba(255,255,255,0.9)" ` +
+      `font-family="system-ui, sans-serif">${escapeXmlText(label)}</text>`
+    );
+  }
+
+  function zoneBoxMarkup(firstKeypoint, secondKeypoint, label, status) {
+    const centerX = (firstKeypoint.xPixels + secondKeypoint.xPixels) / 2;
+    const centerY = (firstKeypoint.yPixels + secondKeypoint.yPixels) / 2;
+    const boxWidth = Math.abs(secondKeypoint.xPixels - firstKeypoint.xPixels) + 40;
+    const boxHeight = 28;
+    const color = statusColor(status);
+
+    return (
+      `<rect x="${(centerX - boxWidth / 2).toFixed(1)}" y="${(centerY - boxHeight / 2).toFixed(1)}" ` +
+      `width="${boxWidth.toFixed(1)}" height="${boxHeight.toFixed(1)}" fill="none" stroke="${color}" ` +
+      `stroke-width="1.5" stroke-dasharray="4,3" />\n  ` +
+      `<text x="${(centerX - boxWidth / 2 + 4).toFixed(1)}" y="${(centerY - boxHeight / 2 - 5).toFixed(1)}" ` +
+      `font-size="14" font-weight="bold" fill="${color}" font-family="system-ui, sans-serif">${escapeXmlText(label)}</text>`
+    );
+  }
+
+  function renderSkeletonOverlaySvg({
+    keypoints,
+    postureResults,
+    drawSide,
+    widthPixels,
+    heightPixels,
+    confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD
+  }) {
+    if (!keypoints || keypoints.length === 0) {
+      return null;
+    }
+
+    const keypointsByName = new Map(keypoints.map((keypoint) => [keypoint.name, keypoint]));
+    const isConfident = (name) => {
+      const keypoint = keypointsByName.get(name);
+      return Boolean(keypoint) && keypoint.confidenceScore >= confidenceThreshold;
+    };
+
+    const lineMarkup = SKELETON_CONNECTIONS.filter(([a, b]) => isConfident(a) && isConfident(b))
+      .map(([a, b]) => {
+        const pointA = keypointsByName.get(a);
+        const pointB = keypointsByName.get(b);
+        return (
+          `<line x1="${pointA.xPixels.toFixed(1)}" y1="${pointA.yPixels.toFixed(1)}" ` +
+          `x2="${pointB.xPixels.toFixed(1)}" y2="${pointB.yPixels.toFixed(1)}" ` +
+          `stroke="rgba(148,163,184,0.85)" stroke-width="2" />`
+        );
+      })
+      .join("\n  ");
+
+    const dotMarkup = keypoints
+      .filter((keypoint) => keypoint.confidenceScore >= confidenceThreshold)
+      .map(
+        (keypoint) =>
+          `<circle cx="${keypoint.xPixels.toFixed(1)}" cy="${keypoint.yPixels.toFixed(1)}" r="5" ` +
+          `fill="#3b82f6" stroke="white" stroke-width="1.5" />`
+      )
+      .join("\n  ");
+
+    const zoneMarkupParts = [];
+    const shoulderResult = findMetric(postureResults, "shoulderLevel");
+    if (shoulderResult && shoulderResult.status && isConfident("left_shoulder") && isConfident("right_shoulder")) {
+      zoneMarkupParts.push(
+        zoneBoxMarkup(
+          keypointsByName.get("left_shoulder"),
+          keypointsByName.get("right_shoulder"),
+          "Spalle",
+          shoulderResult.status
+        )
+      );
+    }
+    const hipResult = findMetric(postureResults, "hipLevel");
+    if (hipResult && hipResult.status && isConfident("left_hip") && isConfident("right_hip")) {
+      zoneMarkupParts.push(
+        zoneBoxMarkup(keypointsByName.get("left_hip"), keypointsByName.get("right_hip"), "Bacino", hipResult.status)
+      );
+    }
+
+    const angleMarkupParts = [];
+    const bowSide = drawSide === "right" ? "left" : "right";
+    const bowResult = findMetric(postureResults, "bowArmElbow");
+    if (bowResult && bowResult.valueDegrees !== null && isConfident(`${bowSide}_elbow`)) {
+      angleMarkupParts.push(
+        angleLabelMarkup(keypointsByName.get(`${bowSide}_elbow`), bowResult, "Braccio arco")
+      );
+    }
+    const drawResult = findMetric(postureResults, "drawArmElbow");
+    if (drawResult && drawResult.valueDegrees !== null && isConfident(`${drawSide}_elbow`)) {
+      angleMarkupParts.push(
+        angleLabelMarkup(keypointsByName.get(`${drawSide}_elbow`), drawResult, "Braccio corda")
+      );
+    }
+
+    return `<svg width="${widthPixels}" height="${heightPixels}" viewBox="0 0 ${widthPixels} ${heightPixels}" xmlns="http://www.w3.org/2000/svg">
+  ${lineMarkup}
+  ${dotMarkup}
+  ${zoneMarkupParts.join("\n  ")}
+  ${angleMarkupParts.join("\n  ")}
+</svg>
+`;
+  }
+
   let timeline = null;
   let currentFrameIndex = 0;
 

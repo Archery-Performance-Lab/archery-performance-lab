@@ -196,19 +196,29 @@ function renderSkeletonOverlaySvg({
 `;
 }
 
-// Dual-environment on purpose: this file is `require()`d from Node
-// calibration scripts (inspect-posture.cjs) AND loaded directly via a
-// plain `<script src="...">` tag by tools/posture-video-player.html
-// (a static page with no build step, so it cannot `require()`
-// anything). `module` only exists under Node/CommonJS, never in a
-// browser `<script>` tag, so this guard makes the same file work in
-// both without maintaining two copies of this logic — unlike
-// tools/overhead-alignment.html, which duplicates smaller math
-// functions by hand because it has no equivalent single file to load
-// (its formulas live scattered across src/biomechanics/geometry.ts).
-// Plain top-level `function` declarations above are already global
-// (attached to `window`) once this script tag loads, so nothing else
-// needs to change for the browser case.
+// CORRECTION (kept for traceability, not deleted): this guard was
+// originally added so tools/posture-video-player.html could load this
+// exact file via <script src="../scripts/lib/render-skeleton-overlay-svg.cjs">,
+// avoiding a second copy of this logic. That approach was verified
+// working via Node's `vm` module (simulating browser <script> loading
+// with no `module` global) — but a REAL Safari test on the user's Mac
+// found the page couldn't open at all. The actual cause wasn't the
+// dual-environment guard itself: Safari's file:// security sandbox
+// refuses to load a subresource from a directory ABOVE the page's own
+// folder (this file lives in scripts/lib/, the page in tools/, so the
+// path crosses upward through ../.. — Chrome had shown no such
+// problem, which is why this wasn't caught earlier). Fixing that for
+// real would mean requiring a local HTTP server just to open a static
+// page, which breaks the project's "just double-click it, no
+// dependencies" design for this tool. So tools/posture-video-player.html
+// now carries its own inline copy of these functions instead of a
+// <script src> reference to this file — see the comment at the top of
+// its inline <script> block. This file is unchanged otherwise and is
+// still the one actually used by inspect-posture.cjs via require();
+// the guard below is left in place in case a future browser tool
+// serves this project over a real HTTP server rather than file://
+// (which would not hit this restriction), but nothing currently relies
+// on it working in a browser.
 if (typeof module !== "undefined" && module.exports) {
     module.exports = { renderSkeletonOverlaySvg, SKELETON_CONNECTIONS, escapeXmlText };
 }
