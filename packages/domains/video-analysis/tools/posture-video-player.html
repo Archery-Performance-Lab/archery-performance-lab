@@ -21,10 +21,20 @@
      starting width to grow from/shrink from. */
   .video-panel { flex: 3 1 640px; min-width: 480px; max-width: 1200px; }
   .video-wrap { position: relative; width: 100%; background: #000; }
-  .video-wrap video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+  /* object-fit:fill made explicit rather than relied on as the browser
+     default: the SVG overlay below is forced to stretch edge-to-edge too
+     (preserveAspectRatio="none" on its root <svg>), and the two layers
+     only stay pixel-aligned if BOTH stretch identically to this box —
+     if either one instead preserved its own aspect ratio and letterboxed
+     independently (SVG's actual spec default), the two letterbox
+     amounts would generally differ whenever the box's aspect-ratio
+     doesn't exactly match, and the overlay would drift out of alignment
+     with the video underneath it. */
+  .video-wrap video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; object-fit: fill; }
   .video-wrap #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   .video-wrap #overlay svg { display: block; width: 100%; height: 100%; }
   .panel { min-width: 300px; max-width: 380px; }
+  #mismatchWarning { display: none; background: #7f1d1d; color: #fecaca; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 8px 0; max-width: 900px; line-height: 1.5; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
   th, td { text-align: left; padding: 3px 8px 3px 0; border-bottom: 1px solid #1e293b; }
   th { color: #64748b; font-size: 11px; text-transform: uppercase; }
@@ -62,6 +72,8 @@
     <option value="0.1">0.1x</option>
   </select>
 </div>
+
+<div id="mismatchWarning"></div>
 
 <div class="layout">
   <div class="video-panel">
@@ -242,7 +254,16 @@
       );
     }
 
-    return `<svg width="${widthPixels}" height="${heightPixels}" viewBox="0 0 ${widthPixels} ${heightPixels}" xmlns="http://www.w3.org/2000/svg">
+    // preserveAspectRatio="none" is not decorative: without it, SVG's own
+    // spec default ("xMidYMid meet") independently letterboxes THIS
+    // element's content to preserve widthPixels/heightPixels' own ratio
+    // whenever that differs from the rendered box's ratio. The <video>
+    // element right underneath is forced to object-fit:fill (see CSS) —
+    // if the SVG instead letterboxed on its own, the two layers would
+    // scale by different amounts and the overlay would drift off the
+    // video underneath it, independent of whether the keypoints
+    // themselves are correct.
+    return `<svg width="${widthPixels}" height="${heightPixels}" viewBox="0 0 ${widthPixels} ${heightPixels}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
   ${lineMarkup}
   ${dotMarkup}
   ${zoneMarkupParts.join("\n  ")}
@@ -261,6 +282,39 @@
   const playPauseBtn = document.getElementById("playPauseBtn");
   const prevFrameBtn = document.getElementById("prevFrameBtn");
   const nextFrameBtn = document.getElementById("nextFrameBtn");
+  const mismatchWarning = document.getElementById("mismatchWarning");
+
+  // Real bug this caught in practice, not a hypothetical: loading a
+  // timeline JSON built from ONE video (e.g. the Kim Woojin calibration
+  // clip) together with a DIFFERENT video (e.g. the user's own phone
+  // footage) silently "worked" — no error anywhere — but every keypoint
+  // then belongs to a completely different piece of footage, so the
+  // skeleton looks placed at random relative to what's actually on
+  // screen. There is no code-level connection between the two files the
+  // user picks (this page never re-derives one from the other), so this
+  // has to be checked explicitly rather than assumed correct. Checked by
+  // pixel dimensions rather than file name, since names can be renamed
+  // freely but a real pixel-dimension mismatch is unambiguous, and
+  // requires no assumption about naming conventions.
+  function checkDimensionMismatch() {
+    if (!timeline || !video.videoWidth || !video.videoHeight) {
+      mismatchWarning.style.display = "none";
+      return;
+    }
+    if (video.videoWidth !== timeline.widthPixels || video.videoHeight !== timeline.heightPixels) {
+      mismatchWarning.style.display = "block";
+      mismatchWarning.textContent =
+        `Attenzione: il video caricato è ${video.videoWidth}x${video.videoHeight}px, ma questo file JSON ` +
+        `è stato calcolato da build-posture-timeline.cjs per un video ${timeline.widthPixels}x${timeline.heightPixels}px` +
+        (timeline.videoFileName ? ` ("${timeline.videoFileName}")` : "") +
+        `. Video e dati probabilmente non corrispondono: lo scheletro sovrapposto non ha alcun rapporto ` +
+        `con questo video. Genera un JSON per QUESTO video con build-posture-timeline.cjs, oppure carica ` +
+        `il video giusto per questo JSON.`;
+    } else {
+      mismatchWarning.style.display = "none";
+      mismatchWarning.textContent = "";
+    }
+  }
 
   function escapeHtml(value) {
     return String(value)
@@ -288,6 +342,7 @@
         return;
       }
       videoWrap.style.aspectRatio = `${timeline.widthPixels} / ${timeline.heightPixels}`;
+      checkDimensionMismatch();
       maybeEnableControls();
     };
     reader.readAsText(file);
@@ -361,6 +416,7 @@
   // timer), falling back to the coarser 'timeupdate' event on browsers
   // that don't support it.
   video.addEventListener("loadeddata", () => {
+    checkDimensionMismatch();
     renderCurrentFrame();
     if (video.requestVideoFrameCallback) {
       const loop = () => {

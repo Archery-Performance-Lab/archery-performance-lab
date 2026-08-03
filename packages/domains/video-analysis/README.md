@@ -572,6 +572,34 @@ the script.
   already visible, rather than guessing a timestamp blind the way the
   now-abandoned single-frame workflow required.
 
+  **Two real bugs found once tested on real Mac footage, both fixed
+  rather than left as caveats:**
+
+  The player is the only place in this package where the video the
+  keypoints were computed FROM and the video being displayed are two
+  independently chosen files (every other tool works on one video at a
+  time end-to-end). Loading a mismatched pair — e.g. the Kim Woojin
+  calibration clip's JSON alongside a different video the user just
+  filmed — silently rendered a skeleton with no relationship to what's
+  on screen, since nothing checked the two files actually corresponded.
+  `checkDimensionMismatch()` now compares the loaded `<video>`'s real
+  `videoWidth`/`videoHeight` against the JSON's `widthPixels`/`heightPixels`
+  whenever either file changes, and shows a visible warning banner
+  instead of rendering a meaningless overlay silently.
+
+  Separately, and even with a correctly-matched pair: `<video>` and the
+  overlay `<svg>` (both styled `width:100%; height:100%` of the same
+  box) each independently decide how to fit their own content into that
+  box. SVG's own default (`preserveAspectRatio="xMidYMid meet"`)
+  letterboxes to preserve the `viewBox`'s aspect ratio whenever it
+  differs from the box's — a different amount of letterboxing than the
+  video layer, silently drifting the overlay out of alignment. Fixed by
+  forcing both layers to stretch identically instead of each fitting
+  itself independently: explicit `object-fit: fill` on the `<video>`,
+  and `preserveAspectRatio="none"` added to `renderSkeletonOverlaySvg()`'s
+  emitted `<svg>` root (kept in sync in both the inline copy here and
+  `scripts/lib/render-skeleton-overlay-svg.cjs`).
+
   **Correction (real Safari test, not a hypothesis):** this page
   originally loaded `scripts/lib/render-skeleton-overlay-svg.cjs`
   directly via a plain `<script src="../scripts/lib/render-skeleton-overlay-svg.cjs">`

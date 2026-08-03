@@ -187,7 +187,20 @@ function renderSkeletonOverlaySvg({
         );
     }
 
-    return `<svg width="${widthPixels}" height="${heightPixels}" viewBox="0 0 ${widthPixels} ${heightPixels}" xmlns="http://www.w3.org/2000/svg">
+    // preserveAspectRatio="none": kept in sync with the inline copy in
+    // tools/posture-video-player.html (see the "keep in sync by hand"
+    // note near its own module.exports guard below). Without this, SVG's
+    // own spec default ("xMidYMid meet") independently letterboxes this
+    // element to preserve widthPixels/heightPixels' own ratio whenever
+    // that differs from its rendered box's ratio — for the video player,
+    // that would drift the overlay out of alignment with the <video>
+    // underneath it (forced to object-fit:fill there), regardless of
+    // whether the keypoints themselves are correct. This single-frame
+    // use in render-posture-overlay-html.cjs is far less exposed to this
+    // (the frame image and this SVG are always the exact same pixel
+    // dimensions), but the two copies are kept identical rather than
+    // silently diverging.
+    return `<svg width="${widthPixels}" height="${heightPixels}" viewBox="0 0 ${widthPixels} ${heightPixels}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
   ${lineMarkup}
   ${dotMarkup}
   ${zoneMarkupParts.join("\n  ")}
