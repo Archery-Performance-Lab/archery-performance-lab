@@ -10,7 +10,17 @@
   p.note { color: #94a3b8; font-size: 13px; max-width: 900px; line-height: 1.5; }
   .toolbar { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
   .layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
-  .video-wrap { position: relative; width: 100%; max-width: 900px; background: #000; }
+  /* The video and #overlay inside .video-wrap are both position:absolute,
+     which takes them out of normal flow — they contribute NO size to any
+     ancestor. Without an explicit width somewhere in the chain, this plain
+     wrapping div (a flex item with no content that has real width, since
+     .video-wrap's own "width:100%" then has nothing real to be 100% OF)
+     collapses to whatever the smallest flex-item width the browser can
+     get away with, which is why the player rendered tiny regardless of
+     the video's actual resolution. flex-basis below gives it a real
+     starting width to grow from/shrink from. */
+  .video-panel { flex: 3 1 640px; min-width: 480px; max-width: 1200px; }
+  .video-wrap { position: relative; width: 100%; background: #000; }
   .video-wrap video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
   .video-wrap #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   .video-wrap #overlay svg { display: block; width: 100%; height: 100%; }
@@ -54,7 +64,7 @@
 </div>
 
 <div class="layout">
-  <div>
+  <div class="video-panel">
     <div class="video-wrap" id="videoWrap">
       <video id="video" muted playsinline></video>
       <div id="overlay"></div>
