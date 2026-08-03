@@ -327,3 +327,43 @@ the script.
   human-judgment-only criterion for now (see `types/phase.ts`).
   Work paused here — see `types/phase.ts`'s hand-tension note for the
   same summary closer to the code.
+
+- `scripts/inspect-elbow-angle.cjs [right|left]` — batch script over
+  every calibration video computing the draw arm's elbow bend
+  (shoulder-elbow-wrist, via the existing `biomechanics/
+  angleAtJointDegrees()` — the calculation already existed, only the
+  script is new) frame by frame, and rendering it as a chart over
+  time. Prompted by an out-of-context suggestion from an unrelated
+  chat to use Python + MediaPipe + OpenCV for this; MediaPipe and this
+  project's BlazePose (via `@tensorflow-models/pose-detection`) are the
+  same underlying pose model family, so the signal itself is sound —
+  it just didn't need a second language/runtime added to this
+  monorepo for one chart. Applies the same 300ms warmup exclusion and
+  per-video try/catch pattern as `detect-phases.cjs` and
+  `build-calibration-dataset.cjs` (see the warmup-noise bug above), so
+  one bad video doesn't take the batch down and pose-detector startup
+  jitter doesn't show up as fake elbow-angle noise at the start of
+  every chart.
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/inspect-elbow-angle.cjs right
+  ```
+
+  Writes one CSV per video to `signals/` (`timestamp_ms,
+  draw_arm_elbow_angle_degrees`) and one SVG chart per video to a new
+  `charts/` folder alongside it, both outside this repository. Charts
+  are rendered by `scripts/lib/render-svg-line-chart.cjs`, a small,
+  dependency-free SVG line-chart generator (plain string-building —
+  same zero-new-dependency spirit as this project's `node:test` test
+  runner and its WASM-over-native backend choice) rather than a
+  charting library or a Python/matplotlib detour. One rendering
+  decision worth recording: a rotated, vertical y-axis label was tried
+  first, but ImageMagick's built-in SVG renderer (used here only to
+  spot-check output as PNG) rendered rotated `<text>` as invisible in
+  an isolated test — possibly an ImageMagick-specific limitation rather
+  than a real browser issue, but since actual browser rendering
+  couldn't be verified from this sandbox, the design was changed to a
+  plain horizontal label instead of shipping an unverified assumption.
+  Open the `.svg` files directly in a real browser to view the charts.
