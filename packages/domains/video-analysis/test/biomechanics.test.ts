@@ -8,6 +8,7 @@ import {
     perpendicularDistanceFromLinePixels,
     angleFromHorizontalDegrees,
     tiltFromVerticalDegrees,
+    angleBetweenLinesDegrees,
     keypointVelocityPixelsPerSecond
 } from "../src/biomechanics";
 import type { PoseFrame, PoseKeypoint } from "../src/types";
@@ -162,6 +163,51 @@ describe("biomechanics/geometry/tiltFromVerticalDegrees", () => {
     it("throws when the two keypoints coincide", () => {
         const point = keypoint("point", 5, 5);
         assert.throws(() => tiltFromVerticalDegrees(point, point));
+    });
+});
+
+describe("biomechanics/geometry/angleBetweenLinesDegrees", () => {
+    it("is zero for two parallel, non-overlapping segments", () => {
+        // Line A: (0,0)->(10,0). Line B: (0,5)->(10,5) — same direction,
+        // offset vertically, no shared point.
+        const a1 = keypoint("a1", 0, 0);
+        const a2 = keypoint("a2", 10, 0);
+        const b1 = keypoint("b1", 0, 5);
+        const b2 = keypoint("b2", 10, 5);
+
+        assert.ok(Math.abs(angleBetweenLinesDegrees(a1, a2, b1, b2)) < 1e-9);
+    });
+
+    it("is 90 for two perpendicular segments", () => {
+        const a1 = keypoint("a1", 0, 0);
+        const a2 = keypoint("a2", 10, 0);
+        const b1 = keypoint("b1", 5, -20);
+        const b2 = keypoint("b2", 5, 20);
+
+        assert.ok(Math.abs(angleBetweenLinesDegrees(a1, a2, b1, b2) - 90) < 1e-9);
+    });
+
+    it("does not depend on segment direction or argument order", () => {
+        const a1 = keypoint("a1", 0, 0);
+        const a2 = keypoint("a2", 10, 10);
+        const b1 = keypoint("b1", 0, 5);
+        const b2 = keypoint("b2", 10, 0);
+
+        const forward = angleBetweenLinesDegrees(a1, a2, b1, b2);
+        const reversedFirst = angleBetweenLinesDegrees(a2, a1, b1, b2);
+        const reversedSecond = angleBetweenLinesDegrees(a1, a2, b2, b1);
+        const swapped = angleBetweenLinesDegrees(b1, b2, a1, a2);
+
+        assert.ok(Math.abs(forward - reversedFirst) < 1e-9);
+        assert.ok(Math.abs(forward - reversedSecond) < 1e-9);
+        assert.ok(Math.abs(forward - swapped) < 1e-9);
+    });
+
+    it("throws when a segment has zero length", () => {
+        const point = keypoint("p", 0, 0);
+        const other1 = keypoint("o1", 5, 5);
+        const other2 = keypoint("o2", 8, 2);
+        assert.throws(() => angleBetweenLinesDegrees(point, point, other1, other2));
     });
 });
 

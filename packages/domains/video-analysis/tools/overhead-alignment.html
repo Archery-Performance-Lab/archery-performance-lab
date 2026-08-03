@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Annotazione manuale — angoli su immagine fissa</title>
+<style>
+  body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; color: #94a3b8; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  p.note { color: #94a3b8; font-size: 13px; max-width: 900px; line-height: 1.5; }
+  .layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  canvas { border: 1px solid #334155; max-width: 640px; width: 100%; cursor: crosshair; background: #1e293b; }
+  .panel { min-width: 320px; max-width: 420px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
+  th, td { text-align: left; padding: 3px 8px 3px 0; border-bottom: 1px solid #1e293b; }
+  th { color: #64748b; font-size: 11px; text-transform: uppercase; }
+  button, select, input[type="text"] { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; font-size: 13px; }
+  button { cursor: pointer; }
+  button:hover { background: #334155; }
+  .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+  .delete-link { color: #f87171; cursor: pointer; font-size: 12px; }
+  .error-text { color: #f87171; }
+  .value-text { color: #4ade80; font-weight: bold; }
+  .toolbar { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<h1>Annotazione manuale — angoli su immagine fissa</h1>
+<p class="note">
+  Per verifiche che richiedono un'inquadratura (es. dall'alto) su cui non
+  sappiamo se la stima automatica della posa funziona in modo affidabile —
+  vedi il controllo di allineamento del manuale "Livello Avanzato per
+  l'istruttore" (mano dell'arco / gomito di trazione / testa, più
+  l'allineamento avambraccio-freccia). Qui i punti li posiziona una persona,
+  non un modello: carica una foto, clicca per posizionare i punti, componi le
+  richieste di angolo/distanza tra punti con nome. Nessuna immagine lascia
+  questo browser — tutta l'elaborazione è locale (nessun upload, nessun
+  server). I valori mostrati qui sono un'anteprima calcolata da una copia a
+  mano delle stesse formule già testate in
+  <code>src/biomechanics/geometry.ts</code> (mantenuta sincronizzata
+  manualmente, non tramite build) — per il calcolo autorevole, esporta il
+  JSON e lancia <code>scripts/compute-annotated-angles.cjs</code>, che passa
+  attraverso il vero codice TypeScript testato.
+</p>
+
+<div class="toolbar">
+  <label>Immagine: <input type="file" id="imageInput" accept="image/*" /></label>
+  <button id="clearPointsBtn">Elimina tutti i punti</button>
+  <button id="clearRequestsBtn">Elimina tutte le richieste</button>
+  <button id="exportBtn">Esporta JSON</button>
+  <label>Importa JSON: <input type="file" id="importInput" accept="application/json" /></label>
+</div>
+
+<div class="layout">
+  <div>
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Punti</h2>
+    <table id="pointsTable">
+      <thead><tr><th>Nome</th><th>x</th><th>y</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Nuova richiesta</h2>
+    <div class="row">
+      <select id="requestType">
+        <option value="angleAtJoint">Angolo a un vertice (3 punti)</option>
+        <option value="angleFromHorizontal">Inclinazione da orizzontale (2 punti)</option>
+        <option value="tiltFromVertical">Inclinazione da verticale (2 punti)</option>
+        <option value="angleBetweenLines">Angolo tra due linee (4 punti)</option>
+        <option value="distance">Distanza in pixel (2 punti)</option>
+      </select>
+    </div>
+    <div id="requestFields"></div>
+    <div class="row">
+      <input type="text" id="requestId" placeholder="etichetta (es. gomito_corda)" />
+      <button id="addRequestBtn">Aggiungi richiesta</button>
+    </div>
+
+    <h2>Risultati</h2>
+    <table id="resultsTable">
+      <thead><tr><th>Etichetta</th><th>Valore</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // ── Copia a mano delle primitive di src/biomechanics/geometry.ts ──────────
+  // Mantenuta sincronizzata a mano, non tramite build/bundler: questo file è
+  // una pagina HTML statica indipendente, senza passo di compilazione — vedi
+  // la nota in cima alla pagina. Il calcolo autorevole (quello di cui ci si
+  // deve fidare) resta scripts/compute-annotated-angles.cjs, che chiama il
+  // vero codice TypeScript testato in src/manual-annotation/.
+  const ZERO_LENGTH_TOLERANCE = 1e-9;
+
+  function distancePixels(a, b) {
+    const dx = b.xPixels - a.xPixels, dy = b.yPixels - a.yPixels;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function angleAtJointDegrees(a, joint, b) {
+    const ax = a.xPixels - joint.xPixels, ay = a.yPixels - joint.yPixels;
+    const bx = b.xPixels - joint.xPixels, by = b.yPixels - joint.yPixels;
+    const al = Math.sqrt(ax * ax + ay * ay), bl = Math.sqrt(bx * bx + by * by);
+    if (al < ZERO_LENGTH_TOLERANCE || bl < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("un punto coincide con il vertice");
+    }
+    const cos = Math.min(1, Math.max(-1, (ax * bx + ay * by) / (al * bl)));
+    return (Math.acos(cos) * 180) / Math.PI;
+  }
+
+  function angleFromHorizontalDegrees(a, b) {
+    const dx = b.xPixels - a.xPixels, dy = b.yPixels - a.yPixels;
+    if (Math.sqrt(dx * dx + dy * dy) < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("i due punti coincidono");
+    }
+    const raw = Math.abs((Math.atan2(dy, dx) * 180) / Math.PI);
+    return Math.min(raw, 180 - raw);
+  }
+
+  function tiltFromVerticalDegrees(top, bottom) {
+    const dx = bottom.xPixels - top.xPixels, dy = bottom.yPixels - top.yPixels;
+    if (Math.sqrt(dx * dx + dy * dy) < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("i due punti coincidono");
+    }
+    return Math.abs((Math.atan2(dx, dy) * 180) / Math.PI);
+  }
+
+  function angleBetweenLinesDegrees(a1, a2, b1, b2) {
+    const adx = a2.xPixels - a1.xPixels, ady = a2.yPixels - a1.yPixels;
+    const bdx = b2.xPixels - b1.xPixels, bdy = b2.yPixels - b1.yPixels;
+    const al = Math.sqrt(adx * adx + ady * ady), bl = Math.sqrt(bdx * bdx + bdy * bdy);
+    if (al < ZERO_LENGTH_TOLERANCE || bl < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("un segmento ha lunghezza zero");
+    }
+    const cos = Math.min(1, Math.max(-1, (adx * bdx + ady * bdy) / (al * bl)));
+    const raw = (Math.acos(cos) * 180) / Math.PI;
+    return Math.min(raw, 180 - raw);
+  }
+
+  // ── Stato ───────────────────────────────────────────────────────────────
+  let image = null;
+  let points = [];   // { name, xPixels, yPixels }
+  let requests = [];  // { id, type, ...pointNameFields }
+
+  const REQUEST_FIELD_DEFS = {
+    angleAtJoint: [
+      ["firstPointName", "Primo punto"],
+      ["jointPointName", "Vertice (giunto)"],
+      ["secondPointName", "Secondo punto"]
+    ],
+    angleFromHorizontal: [["firstPointName", "Primo punto"], ["secondPointName", "Secondo punto"]],
+    tiltFromVertical: [["topPointName", "Punto in alto"], ["bottomPointName", "Punto in basso"]],
+    angleBetweenLines: [
+      ["firstLineStartPointName", "Linea 1 — inizio"],
+      ["firstLineEndPointName", "Linea 1 — fine"],
+      ["secondLineStartPointName", "Linea 2 — inizio"],
+      ["secondLineEndPointName", "Linea 2 — fine"]
+    ],
+    distance: [["firstPointName", "Primo punto"], ["secondPointName", "Secondo punto"]]
+  };
+
+  const REQUEST_COLORS = ["#facc15", "#38bdf8", "#f472b6", "#4ade80", "#fb923c", "#a78bfa"];
+
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+
+  // ── Caricamento immagine ────────────────────────────────────────────────
+  document.getElementById("imageInput").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        image = img;
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        points = [];
+        requests = [];
+        redraw();
+        renderPointsTable();
+        renderResults();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // ── Posizionamento punti ────────────────────────────────────────────────
+  canvas.addEventListener("click", (event) => {
+    if (!image) {
+      alert("Carica prima un'immagine.");
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const xPixels = Math.round((event.clientX - rect.left) * scaleX);
+    const yPixels = Math.round((event.clientY - rect.top) * scaleY);
+
+    const defaultName = `punto_${points.length + 1}`;
+    const name = window.prompt("Nome del punto:", defaultName);
+    if (name === null) return; // annullato
+
+    points.push({ name: name.trim() || defaultName, xPixels, yPixels });
+    redraw();
+    renderPointsTable();
+    renderResults();
+  });
+
+  document.getElementById("clearPointsBtn").addEventListener("click", () => {
+    points = [];
+    redraw();
+    renderPointsTable();
+    renderResults();
+  });
+
+  document.getElementById("clearRequestsBtn").addEventListener("click", () => {
+    requests = [];
+    redraw();
+    renderResults();
+  });
+
+  function removePoint(name) {
+    points = points.filter((p) => p.name !== name);
+    redraw();
+    renderPointsTable();
+    renderResults();
+  }
+
+  function removeRequest(id) {
+    requests = requests.filter((r) => r.id !== id);
+    redraw();
+    renderResults();
+  }
+
+  // ── Disegno ─────────────────────────────────────────────────────────────
+  function findPoint(name) {
+    return points.find((p) => p.name === name);
+  }
+
+  function redraw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (image) ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+    // Segmenti delle richieste, sotto ai punti.
+    requests.forEach((request, index) => {
+      const color = REQUEST_COLORS[index % REQUEST_COLORS.length];
+      const segments = segmentsForRequest(request);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      segments.forEach(([fromName, toName]) => {
+        const from = findPoint(fromName), to = findPoint(toName);
+        if (!from || !to) return;
+        ctx.beginPath();
+        ctx.moveTo(from.xPixels, from.yPixels);
+        ctx.lineTo(to.xPixels, to.yPixels);
+        ctx.stroke();
+      });
+    });
+
+    // Punti sopra ai segmenti.
+    points.forEach((point) => {
+      ctx.beginPath();
+      ctx.arc(point.xPixels, point.yPixels, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#3b82f6";
+      ctx.fill();
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.font = "13px system-ui, sans-serif";
+      ctx.fillStyle = "white";
+      ctx.fillText(point.name, point.xPixels + 8, point.yPixels - 8);
+    });
+  }
+
+  function segmentsForRequest(request) {
+    if (request.type === "angleAtJoint") {
+      return [
+        [request.firstPointName, request.jointPointName],
+        [request.jointPointName, request.secondPointName]
+      ];
+    }
+    if (request.type === "angleFromHorizontal" || request.type === "distance") {
+      return [[request.firstPointName, request.secondPointName]];
+    }
+    if (request.type === "tiltFromVertical") {
+      return [[request.topPointName, request.bottomPointName]];
+    }
+    if (request.type === "angleBetweenLines") {
+      return [
+        [request.firstLineStartPointName, request.firstLineEndPointName],
+        [request.secondLineStartPointName, request.secondLineEndPointName]
+      ];
+    }
+    return [];
+  }
+
+  // ── Tabella punti ───────────────────────────────────────────────────────
+  function renderPointsTable() {
+    const tbody = document.querySelector("#pointsTable tbody");
+    tbody.innerHTML = "";
+    points.forEach((point) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${escapeHtml(point.name)}</td><td>${point.xPixels}</td><td>${point.yPixels}</td>` +
+        `<td><span class="delete-link" data-name="${escapeHtml(point.name)}">elimina</span></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll(".delete-link").forEach((el) => {
+      el.addEventListener("click", () => removePoint(el.dataset.name));
+    });
+    renderRequestFields(); // le opzioni dei menu dipendono dai punti attuali
+  }
+
+  // ── Form nuova richiesta ────────────────────────────────────────────────
+  const requestTypeSelect = document.getElementById("requestType");
+  requestTypeSelect.addEventListener("change", renderRequestFields);
+
+  function renderRequestFields() {
+    const type = requestTypeSelect.value;
+    const container = document.getElementById("requestFields");
+    container.innerHTML = "";
+    const fieldDefs = REQUEST_FIELD_DEFS[type];
+
+    fieldDefs.forEach(([fieldName, label]) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const select = document.createElement("select");
+      select.dataset.field = fieldName;
+      select.innerHTML = `<option value="">— ${escapeHtml(label)} —</option>` +
+        points.map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
+      row.appendChild(select);
+      container.appendChild(row);
+    });
+  }
+  renderRequestFields();
+
+  document.getElementById("addRequestBtn").addEventListener("click", () => {
+    const type = requestTypeSelect.value;
+    const fieldDefs = REQUEST_FIELD_DEFS[type];
+    const container = document.getElementById("requestFields");
+    const selects = container.querySelectorAll("select");
+
+    const request = { type };
+    let missing = false;
+    selects.forEach((select) => {
+      if (!select.value) missing = true;
+      request[select.dataset.field] = select.value;
+    });
+    if (missing) {
+      alert("Seleziona un punto per ogni campo della richiesta.");
+      return;
+    }
+
+    const idInput = document.getElementById("requestId");
+    request.id = idInput.value.trim() || `richiesta_${requests.length + 1}`;
+    idInput.value = "";
+
+    requests.push(request);
+    redraw();
+    renderResults();
+  });
+
+  // ── Calcolo (anteprima) e tabella risultati ────────────────────────────
+  function computeOne(request) {
+    try {
+      if (request.type === "angleAtJoint") {
+        const a = findPoint(request.firstPointName), joint = findPoint(request.jointPointName), b = findPoint(request.secondPointName);
+        if (!a || !joint || !b) throw new Error("punto non trovato");
+        return { value: angleAtJointDegrees(a, joint, b), unit: "°" };
+      }
+      if (request.type === "angleFromHorizontal") {
+        const a = findPoint(request.firstPointName), b = findPoint(request.secondPointName);
+        if (!a || !b) throw new Error("punto non trovato");
+        return { value: angleFromHorizontalDegrees(a, b), unit: "°" };
+      }
+      if (request.type === "tiltFromVertical") {
+        const top = findPoint(request.topPointName), bottom = findPoint(request.bottomPointName);
+        if (!top || !bottom) throw new Error("punto non trovato");
+        return { value: tiltFromVerticalDegrees(top, bottom), unit: "°" };
+      }
+      if (request.type === "angleBetweenLines") {
+        const a1 = findPoint(request.firstLineStartPointName), a2 = findPoint(request.firstLineEndPointName);
+        const b1 = findPoint(request.secondLineStartPointName), b2 = findPoint(request.secondLineEndPointName);
+        if (!a1 || !a2 || !b1 || !b2) throw new Error("punto non trovato");
+        return { value: angleBetweenLinesDegrees(a1, a2, b1, b2), unit: "°" };
+      }
+      if (request.type === "distance") {
+        const a = findPoint(request.firstPointName), b = findPoint(request.secondPointName);
+        if (!a || !b) throw new Error("punto non trovato");
+        return { value: distancePixels(a, b), unit: "px" };
+      }
+      throw new Error("tipo di richiesta sconosciuto");
+    } catch (error) {
+      return { value: null, unit: null, error: error.message };
+    }
+  }
+
+  function renderResults() {
+    const tbody = document.querySelector("#resultsTable tbody");
+    tbody.innerHTML = "";
+    requests.forEach((request) => {
+      const result = computeOne(request);
+      const tr = document.createElement("tr");
+      const valueCell = result.error
+        ? `<span class="error-text">${escapeHtml(result.error)}</span>`
+        : `<span class="value-text">${result.value.toFixed(1)}${result.unit}</span>`;
+      tr.innerHTML = `<td>${escapeHtml(request.id)}</td><td>${valueCell}</td>` +
+        `<td><span class="delete-link" data-id="${escapeHtml(request.id)}">elimina</span></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll(".delete-link").forEach((el) => {
+      el.addEventListener("click", () => removeRequest(el.dataset.id));
+    });
+  }
+
+  // ── Esporta / importa JSON ──────────────────────────────────────────────
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    const data = { points, requests };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `overhead-alignment-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("importInput").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        points = Array.isArray(data.points) ? data.points : [];
+        requests = Array.isArray(data.requests) ? data.requests : [];
+        redraw();
+        renderPointsTable();
+        renderResults();
+      } catch (error) {
+        alert("File JSON non valido: " + error.message);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  });
+
+  // ── Utilità ─────────────────────────────────────────────────────────────
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+</script>
+</body>
+</html>

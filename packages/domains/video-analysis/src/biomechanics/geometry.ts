@@ -182,3 +182,56 @@ export function tiltFromVerticalDegrees(
 
     return Math.abs((Math.atan2(deltaX, deltaY) * 180) / Math.PI);
 }
+
+/**
+ * The angle, in degrees, between two line segments that do NOT
+ * necessarily share a vertex — unlike angleAtJointDegrees(), which
+ * needs all three points to meet at one joint. Folded into [0, 90],
+ * same reasoning as angleFromHorizontalDegrees(): a line has no
+ * direction, so reversing either segment (or swapping which is
+ * "first"/"second") must not change the result.
+ *
+ * Motivating use case: a real coaching check from Filippo Clini's
+ * "Livello Avanzato per l'istruttore" manual, read from an overhead
+ * camera angle — whether the draw forearm stays parallel to the
+ * arrow's line, drawn in the manual as a separate line (forearm)
+ * compared against the bow-hand-to-anchor-point line (arrow), which
+ * do not share an endpoint. That manual's check is not reproduced
+ * elsewhere in this package (see manual-annotation/ and README.md for
+ * why — it needs a camera directly above the archer, a viewing angle
+ * BlazePose's real-world detection accuracy has not been checked
+ * against), so this primitive is meant to be fed points a human
+ * places by hand on a still photo, not BlazePose keypoints.
+ *
+ * Throws if either segment has (effectively) zero length, same
+ * reasoning as the other angle functions in this file.
+ */
+export function angleBetweenLinesDegrees(
+    firstLineStart: PoseKeypoint,
+    firstLineEnd: PoseKeypoint,
+    secondLineStart: PoseKeypoint,
+    secondLineEnd: PoseKeypoint
+): number {
+    const firstDeltaX = firstLineEnd.xPixels - firstLineStart.xPixels;
+    const firstDeltaY = firstLineEnd.yPixels - firstLineStart.yPixels;
+    const secondDeltaX = secondLineEnd.xPixels - secondLineStart.xPixels;
+    const secondDeltaY = secondLineEnd.yPixels - secondLineStart.yPixels;
+
+    const firstLength = Math.sqrt(firstDeltaX * firstDeltaX + firstDeltaY * firstDeltaY);
+    const secondLength = Math.sqrt(secondDeltaX * secondDeltaX + secondDeltaY * secondDeltaY);
+
+    const ZERO_LENGTH_TOLERANCE_PIXELS = 1e-9;
+    if (firstLength < ZERO_LENGTH_TOLERANCE_PIXELS || secondLength < ZERO_LENGTH_TOLERANCE_PIXELS) {
+        throw new Error(
+            "Cannot compute an angle between lines: one of the segments has zero length"
+        );
+    }
+
+    const dotProduct = firstDeltaX * secondDeltaX + firstDeltaY * secondDeltaY;
+    const cosineOfAngle = dotProduct / (firstLength * secondLength);
+    const clampedCosine = Math.min(1, Math.max(-1, cosineOfAngle));
+
+    const rawAngleDegrees = (Math.acos(clampedCosine) * 180) / Math.PI;
+
+    return Math.min(rawAngleDegrees, 180 - rawAngleDegrees);
+}

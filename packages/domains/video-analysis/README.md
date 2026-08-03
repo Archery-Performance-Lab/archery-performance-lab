@@ -12,18 +12,22 @@ frame-extraction module (`readVideoMetadata`,
 (`shot-analysis/analyzeShotVideo`, plus
 `analyzeShotVideoWithFrames()` for callers that need the raw pixels),
 a `biomechanics` module of pure geometric/kinematic signal functions
-(distance, angle, velocity, angle-from-horizontal, tilt-from-vertical
-between keypoints), a **first-pass, provisional**
-`phase-detection/detectShootingPhases()`, a `hand-tension/` module (a
-candidate, unvalidated texture-based proxy for visible tendon tension
-in the string hand), and a `posture-analysis/` module (six real-time
-postural checks — shoulder/hip level, both elbow angles, head tilt,
-torso verticality — plus a skeleton-overlay renderer for viewing them
-on a single video frame) all exist. `detectShootingPhases()` detects
-Anchor, Release and FollowThrough from real calibration footage;
-Stance, Nocking, SetUp, PreDraw, Drawing, Aiming and Expansion are not
-detected yet — see `phase-detection/` below for exactly why and what
-each would need.
+(distance, angle, velocity, angle-from-horizontal, tilt-from-vertical,
+angle-between-two-arbitrary-lines between keypoints), a **first-pass,
+provisional** `phase-detection/detectShootingPhases()`, a
+`hand-tension/` module (a candidate, unvalidated texture-based proxy
+for visible tendon tension in the string hand), a `posture-analysis/`
+module (six real-time postural checks — shoulder/hip level, both elbow
+angles, head tilt, torso verticality — plus a skeleton-overlay
+renderer for viewing them on a single video frame, both computed from
+BlazePose keypoints), and a `manual-annotation/` module (the same kind
+of angle/distance checks, but computed from points a human places by
+hand on a still photo instead of from BlazePose — for checks that need
+a camera angle pose estimation has not been verified against; see
+below) all exist. `detectShootingPhases()` detects Anchor, Release and
+FollowThrough from real calibration footage; Stance, Nocking, SetUp,
+PreDraw, Drawing, Aiming and Expansion are not detected yet — see
+`phase-detection/` below for exactly why and what each would need.
 
 The pose-estimation wrapper is type-checked and written against the
 real `@tensorflow-models/pose-detection` API (its `.d.ts` files were
@@ -470,3 +474,76 @@ the script.
   this sandbox (same limitation `verify-pose-detector.cjs` already
   documents). Run the command above on the real Mac to get the actual
   first real-video verification.
+
+- `manual-annotation/` — for a real, still-open check this package
+  cannot do automatically: Filippo Clini's manual has a coaching check
+  (bow hand / draw elbow / head forming a triangle, plus a
+  forearm-to-arrow alignment line) that needs a camera positioned
+  directly above the archer, an angle BlazePose's real-world detection
+  accuracy has never been checked against (see `posture-analysis/`
+  above and ROADMAP.md). Rather than guess whether pose estimation
+  would even work from that angle, `manual-annotation/` sidesteps the
+  question: a human places the points themselves, on a still photo,
+  exactly how the manual's own reference photos were annotated by
+  hand — no video, no BlazePose, no camera-angle assumption at all.
+
+  `computeAnnotatedAngles(points: AnnotatedPoint[], requests:
+  AnnotatedAngleRequest[])` takes named points (`{ name, xPixels,
+  yPixels }` — no confidence score; a human either placed a point or
+  didn't) and a list of named requests (`angleAtJoint`,
+  `angleFromHorizontal`, `tiltFromVertical`, `angleBetweenLines`,
+  `distance`), matched by point name rather than by a fixed role —
+  deliberately generic, not hardcoded to the manual's one specific
+  triangle, since a coach may want different points/checks depending
+  on what a given photo shows. Delegates to the exact same,
+  already-tested `biomechanics/` primitives BlazePose keypoints go
+  through (a manually-placed point becomes a `PoseKeypoint` with
+  `confidenceScore: 1`) — no new geometry was written for this,
+  except `angleBetweenLinesDegrees()` (angle between two arbitrary
+  line segments that do NOT share a vertex, needed for the
+  forearm-vs-arrow-line check, since those two lines don't meet at a
+  common point the way an elbow's rays do). A request referencing a
+  missing point name, or one where two required points coincide,
+  produces a result with `error` set instead of throwing — one
+  mistyped name (a real risk with free-text names from an interactive
+  tool) should not discard every other result in the batch.
+
+  `tools/overhead-alignment.html` is the actual point-placing UI: a
+  single, dependency-free HTML file (upload an image, click to place
+  and name points, build angle/distance requests from dropdowns of
+  the points placed so far, see a live-computed preview, export
+  everything as JSON) — opens directly in a browser, no server, no
+  build step, and no image ever leaves the machine (plain
+  `FileReader`/`<canvas>`, no upload). Its live preview duplicates
+  the same geometry formulas by hand, in plain JS (documented in the
+  file itself, and verified — see "Verification" below — to produce
+  identical results to the real TypeScript primitives on the same
+  test cases) since a static HTML file with no build step cannot
+  `import` from this TypeScript package directly. That preview is
+  convenience only, not the authoritative answer:
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/compute-annotated-angles.cjs path/to/overhead-alignment-*.json
+  ```
+
+  `scripts/compute-annotated-angles.cjs` reads that exported JSON and
+  calls the real, tested `computeAnnotatedAngles()` — this is "the
+  script [that] limits itself to calculating the angles and returns
+  the data" in the literal sense the feature was requested in: a
+  clean separation between the interactive point-placing UI and the
+  actual computation, with the computation running through the same
+  tested code path as everything else in this package rather than
+  trusting the HTML page's own hand-copied math for anything that
+  matters.
+
+  **Verification**: `angleBetweenLinesDegrees()` and
+  `computeAnnotatedAngles()` are fully unit tested. The HTML tool's
+  vendored math was checked node-side against the same known-angle
+  test cases used in the real unit tests and produced identical
+  results; the interactive UI itself (clicking, dragging, the actual
+  browser rendering) could not be tested from this sandbox (no
+  browser available) — worth a real click-through before trusting it
+  blindly, same spirit as this package's other not-yet-Mac-verified
+  scripts.
