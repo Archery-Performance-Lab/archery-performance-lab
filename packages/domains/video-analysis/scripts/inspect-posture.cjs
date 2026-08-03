@@ -102,11 +102,21 @@ function extractFrameJpeg(videoFilePath, timestampMilliseconds, outputJpegPath) 
 }
 
 async function main() {
-    const videoFilePath = process.argv[2]
-        ? path.resolve(process.argv[2])
+    // Same argument-parsing convention as inspect-slowmo-release.cjs
+    // and inspect-hand-tension.cjs: videoFilePath is optional, and a
+    // caller who wants to skip it (to just pass drawSide, the common
+    // case — see README.md) should not have to pass an empty-string
+    // placeholder. If argv[2] is "left"/"right" it is treated as
+    // drawSide, not a (nonsensical) file path named "right".
+    const explicitPath = process.argv[2] && !["left", "right"].includes(process.argv[2]) ? process.argv[2] : null;
+    const drawSideArgument = explicitPath ? process.argv[3] : process.argv[2];
+    const timestampArgument = explicitPath ? process.argv[4] : process.argv[3];
+
+    const videoFilePath = explicitPath
+        ? path.resolve(explicitPath)
         : path.join(RAW_VIDEOS_FOLDER, DEFAULT_VIDEO_FILE_NAME);
-    const drawSide = process.argv[3] === "left" ? "left" : "right";
-    const explicitTimestampMilliseconds = process.argv[4] ? Number(process.argv[4]) : null;
+    const drawSide = drawSideArgument === "left" ? "left" : "right";
+    const explicitTimestampMilliseconds = timestampArgument ? Number(timestampArgument) : null;
 
     if (!fs.existsSync(videoFilePath)) {
         console.error(`Video not found: ${videoFilePath}`);
