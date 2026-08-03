@@ -79,6 +79,24 @@ const SKELETON_CONNECTIONS = [
     ["right_ankle", "right_foot_index"]
 ];
 
+// BlazePose's 33-point model reports several fine facial landmarks
+// (left/right eye_inner, eye, eye_outer, mouth_left, mouth_right) and
+// finger detail (left/right pinky, index, thumb) that SKELETON_CONNECTIONS
+// never draws a line to/from — they were never part of ghiggo's own
+// reference skeleton, and no posture metric or angle label uses them
+// either. They were still being drawn as free-floating dots (every
+// keypoint above the confidence threshold got one, whether or not it
+// was actually part of the skeleton), which is harmless when they land
+// near the real face/hand but looks like meaningless clutter when they
+// don't — a real report from a real run: on one frame several of
+// these facial sub-landmarks landed up in the background foliage,
+// visibly disconnected from the archer and from each other. Only
+// keypoints that actually participate in at least one drawn connection
+// are rendered as dots now — this is derived from SKELETON_CONNECTIONS
+// itself (not a separate hardcoded list), so it stays correct
+// automatically if that array ever changes.
+const CONNECTED_KEYPOINT_NAMES = new Set(SKELETON_CONNECTIONS.flatMap(([a, b]) => [a, b]));
+
 function statusColor(status) {
     if (status === "ok") return "#4ade80";
     if (status === "warning") return "#fb923c";
@@ -171,7 +189,10 @@ function renderSkeletonOverlaySvg({
     // the player's own inline copy so the two do not silently diverge
     // in what a "keypoint dot" is capable of expressing.
     const dotMarkup = keypoints
-        .filter((keypoint) => keypoint.confidenceScore >= confidenceThreshold)
+        .filter(
+            (keypoint) =>
+                keypoint.confidenceScore >= confidenceThreshold && CONNECTED_KEYPOINT_NAMES.has(keypoint.name)
+        )
         .map(
             (keypoint) =>
                 `<circle data-name="${escapeXmlText(keypoint.name)}" cx="${keypoint.xPixels.toFixed(1)}" ` +

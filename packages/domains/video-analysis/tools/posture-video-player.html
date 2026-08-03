@@ -201,6 +201,17 @@
     ["right_ankle", "right_foot_index"]
   ];
 
+  // Kept in sync by hand with scripts/lib/render-skeleton-overlay-svg.cjs
+  // (see its own comment): only keypoints that actually appear in some
+  // SKELETON_CONNECTIONS pair get drawn as dots — BlazePose's fine
+  // facial sub-landmarks (eye_inner/eye/eye_outer/mouth_left/mouth_right)
+  // and finger detail (pinky/index/thumb) were being drawn as
+  // free-floating, unconnected dots even though no line, angle label,
+  // or zone box ever used them. A real run showed exactly why that is
+  // a problem, not just untidy: several of these landed up in
+  // background foliage, visibly disconnected from the archer.
+  const CONNECTED_KEYPOINT_NAMES = new Set(SKELETON_CONNECTIONS.flatMap(([a, b]) => [a, b]));
+
   function statusColor(status) {
     if (status === "ok") return "#4ade80";
     if (status === "warning") return "#fb923c";
@@ -276,7 +287,9 @@
     // its fill to amber so a manually-placed point is visually
     // distinguishable from an automatically-detected one at a glance.
     const dotMarkup = keypoints
-      .filter((keypoint) => keypoint.confidenceScore >= confidenceThreshold)
+      .filter(
+        (keypoint) => keypoint.confidenceScore >= confidenceThreshold && CONNECTED_KEYPOINT_NAMES.has(keypoint.name)
+      )
       .map(
         (keypoint) =>
           `<circle data-name="${escapeXmlText(keypoint.name)}" cx="${keypoint.xPixels.toFixed(1)}" ` +

@@ -715,6 +715,21 @@ the script.
   throwing". `tsc -p tsconfig.test.json` clean, all 66 tests still
   pass, HTML tag balance checked.
 
+  **Stopped drawing unconnected keypoints.** A real screenshot showed a
+  cluster of dots floating in background foliage, disconnected from
+  the archer — BlazePose's fine facial sub-landmarks
+  (`eye_inner`/`eye`/`eye_outer`/`mouth_left`/`mouth_right`) and finger
+  detail (`pinky`/`index`/`thumb`) were drawn as soon as they cleared
+  the confidence threshold, whether or not they were part of the
+  skeleton `SKELETON_CONNECTIONS` actually draws. Fixed by deriving
+  `CONNECTED_KEYPOINT_NAMES` from `SKELETON_CONNECTIONS` itself and
+  only drawing a dot for a keypoint that appears in at least one
+  connection — self-maintaining if the connections list changes,
+  rather than a second hardcoded list to keep in sync. Applied to both
+  `scripts/lib/render-skeleton-overlay-svg.cjs` and the inline copy.
+  Verified against a real frame: the excluded names no longer appear
+  in the generated SVG, the skeleton's actual joints still do.
+
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check
   (bow hand / draw elbow / head forming a triangle, plus a
