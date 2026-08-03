@@ -476,23 +476,41 @@ the script.
 
   Once those were fixed, the pipeline ran genuinely end-to-end for the
   first time — real BlazePose output, real posture metrics, a real
-  `.html` overlay — and surfaced a **known open question, not yet
-  resolved**: on that first real frame, all six metrics reported "OK",
-  but visually comparing the rendered skeleton to the photo showed the
-  draw-arm joints and the hips drawn in positions that did not match
-  what the photo actually shows (the draw elbow/wrist land away from
-  the visible arm; the hip alignment box lands near the bottom edge of
-  a frame that may not even show the hips). Two different explanations
-  are possible and not yet told apart: a genuinely low
-  `confidenceScore` for those joints that the 0.5 threshold should
-  have already filtered out (fixable by raising the threshold), or
-  BlazePose reporting *high* confidence for a joint it guessed wrong
-  because the real one is occluded or out of frame (not fixable by any
-  threshold — a real limitation of applying a model trained on fully
-  visible bodies to a partially-cropped/occluded one). `inspect-posture.cjs`
-  now also prints every keypoint's raw confidence score and pixel
-  position to the console specifically to answer this — not yet run
-  again with that logging in place.
+  `.html` overlay — and surfaced something worth checking before
+  trusting any of the six numbers: all six metrics reported "OK", but
+  visually comparing the rendered skeleton to the photo showed the
+  draw-arm joints and the hips drawn in positions that did not obviously
+  match what the photo shows. Adding a console dump of every keypoint's
+  raw `confidenceScore` (now in `inspect-posture.cjs` — see below)
+  showed the legs/feet correctly filtered out (confidence near 0, as
+  expected — they are out of frame in this close-up clip) and the
+  draw-arm elbow/wrist reported *high* confidence (0.99+) well inside
+  the frame, which briefly looked like it could be BlazePose confidently
+  guessing wrong for an occluded joint — a real, harder failure mode no
+  confidence threshold would catch.
+
+  It wasn't that. Checked against the real video directly (per this
+  project's standing rule: verify against real footage before trusting
+  a metric, not just because the numbers came out OK): the default
+  timestamp — the midpoint of this video's 55.8s duration, picked with
+  no knowledge of what is actually happening at that instant — landed
+  *after* Release and FollowThrough had already finished, not during
+  Anchor. A 25° elbow-bend reading is exactly what a hand already
+  pulled back past the jaw during FollowThrough would look like, not a
+  detection error at all. The lesson: `inspect-posture.cjs`'s
+  "midpoint of duration" default is a blind guess and should not be
+  trusted for any video without checking what it actually landed on —
+  pass an explicit `timestampMilliseconds` found by eye instead. A
+  fast way to find a real Anchor moment without scrubbing raw video:
+  `scripts/inspect-elbow-angle.cjs` (see above) already charts this
+  same draw-arm elbow angle over the *entire* video — the flat plateau
+  right before the sharp drop into Release is Anchor; read that
+  plateau's timestamp off the chart's x-axis and pass it straight to
+  `inspect-posture.cjs`. (Note this is a different signal than
+  `phase-detection/detectShootingPhases()`'s wrist-velocity approach,
+  which this specific slow-motion video was already found unsuitable
+  for — a static per-frame angle is far less sensitive to the warmup
+  noise that made velocity-based detection unreliable here.)
 
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check
