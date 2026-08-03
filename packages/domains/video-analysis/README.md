@@ -18,9 +18,12 @@ provisional** `phase-detection/detectShootingPhases()`, a
 `hand-tension/` module (a candidate, unvalidated texture-based proxy
 for visible tendon tension in the string hand), a `posture-analysis/`
 module (six real-time postural checks — shoulder/hip level, both elbow
-angles, head tilt, torso verticality — plus a skeleton-overlay
-renderer for viewing them on a single video frame, both computed from
-BlazePose keypoints), and a `manual-annotation/` module (the same kind
+angles, head tilt, torso verticality — computed from BlazePose
+keypoints), a continuous video-tracking workflow
+(`scripts/build-posture-timeline.cjs` + `tools/posture-video-player.html`
+— every frame of a video's worth of posture metrics, played back with
+a live skeleton overlay, rather than one hand-picked frame), and a
+`manual-annotation/` module (the same kind
 of angle/distance checks, but computed from points a human places by
 hand on a still photo instead of from BlazePose — for checks that need
 a camera angle pose estimation has not been verified against; see
@@ -524,6 +527,72 @@ the script.
   normal-speed calibration clips `detect-phases.cjs` already handles
   well instead, if the goal is a clean first posture-overlay example
   rather than specifically this video.
+
+  All of the above — including the corrected suggestion — was still
+  built on a wrong premise pointed out directly afterward: a real
+  coach does not review one carefully-chosen still frame, they watch
+  the entire action continuously. Picking "the right timestamp" was
+  never really the task. `scripts/build-posture-timeline.cjs` and
+  `tools/posture-video-player.html` (below) replace this single-frame
+  workflow rather than patch it further.
+
+- **Continuous video tracking** — `scripts/build-posture-timeline.cjs
+  [videoFilePath] [right|left] [framesPerSecondToExtract]` runs pose
+  estimation and `analyzePosture()` across an ENTIRE video, not one
+  frame, and writes every frame's keypoints and posture metrics to one
+  JSON file (`posture-timeline/{video}_timeline.json`, outside this
+  repository). Deliberately does NOT apply the usual 300ms
+  warmup-exclusion filter used elsewhere in this package (see
+  `detect-phases.cjs`) — the point here is to let a human see exactly
+  where and how detection is unstable, not hide it behind a filter
+  tuned for a different job (automated phase-boundary detection).
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/build-posture-timeline.cjs right
+  ```
+
+  A full-rate pass over a ~56s clip is on the order of a thousand-plus
+  real BlazePose inferences — expect minutes, not seconds, and a
+  multi-megabyte JSON file; pass a lower `framesPerSecondToExtract` to
+  trade detail for speed/size.
+
+  `tools/posture-video-player.html` is the other half: a standalone,
+  dependency-free page (same "nothing leaves the machine" design as
+  `tools/overhead-alignment.html`) where you select the original video
+  file and this JSON side by side, then play the video with the
+  skeleton, angle readouts and alignment boxes drawn live on top,
+  synced to actual video frames via `requestVideoFrameCallback` (the
+  same browser API "Archery Posture Tracker" itself uses — see
+  `posture-analysis/`'s doc comment). A live metrics table updates
+  alongside. Frame-by-frame step buttons pause playback and jump
+  exactly one precomputed frame at a time — useful for finding a
+  specific moment (Anchor, Release, ...) by eye with the overlay
+  already visible, rather than guessing a timestamp blind the way the
+  now-abandoned single-frame workflow required.
+
+  This page loads `scripts/lib/render-skeleton-overlay-svg.cjs`
+  directly via a plain `<script src="...">` tag rather than
+  duplicating its logic by hand (unlike `tools/overhead-alignment.html`,
+  which has no single file it could load that way — its formulas are
+  scattered across `src/biomechanics/geometry.ts`). That file was
+  given a small dual-environment guard (`module.exports` only runs
+  where `module` actually exists) so the exact same code serves both
+  the Node scripts and this static page — one source of truth, not
+  two copies to keep in sync.
+
+  **Verification**: JS syntax checked, HTML tag balance checked, and
+  the dual-environment loading was verified directly — running
+  `render-skeleton-overlay-svg.cjs` through Node's `vm` module with no
+  `module` global defined (simulating a browser `<script>` tag, not
+  just asserting it should work) produced a working global function
+  that rendered a correct SVG. The full pipeline — a real
+  `build-posture-timeline.cjs` run, and actually pressing play in
+  `posture-video-player.html` — could not be tested from this
+  sandbox for the same reason every other BlazePose-dependent script
+  in this package couldn't (no network access to `tfhub.dev`); needs a
+  real run on the Mac.
 
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check

@@ -196,4 +196,19 @@ function renderSkeletonOverlaySvg({
 `;
 }
 
-module.exports = { renderSkeletonOverlaySvg, SKELETON_CONNECTIONS, escapeXmlText };
+// Dual-environment on purpose: this file is `require()`d from Node
+// calibration scripts (inspect-posture.cjs) AND loaded directly via a
+// plain `<script src="...">` tag by tools/posture-video-player.html
+// (a static page with no build step, so it cannot `require()`
+// anything). `module` only exists under Node/CommonJS, never in a
+// browser `<script>` tag, so this guard makes the same file work in
+// both without maintaining two copies of this logic — unlike
+// tools/overhead-alignment.html, which duplicates smaller math
+// functions by hand because it has no equivalent single file to load
+// (its formulas live scattered across src/biomechanics/geometry.ts).
+// Plain top-level `function` declarations above are already global
+// (attached to `window`) once this script tag loads, so nothing else
+// needs to change for the browser case.
+if (typeof module !== "undefined" && module.exports) {
+    module.exports = { renderSkeletonOverlaySvg, SKELETON_CONNECTIONS, escapeXmlText };
+}

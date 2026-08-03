@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Analisi posturale continua — video</title>
+<style>
+  body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; color: #94a3b8; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  p.note { color: #94a3b8; font-size: 13px; max-width: 900px; line-height: 1.5; }
+  .toolbar { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; align-items: center; }
+  .layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  .video-wrap { position: relative; width: 100%; max-width: 900px; background: #000; }
+  .video-wrap video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; }
+  .video-wrap #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .video-wrap #overlay svg { display: block; width: 100%; height: 100%; }
+  .panel { min-width: 300px; max-width: 380px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
+  th, td { text-align: left; padding: 3px 8px 3px 0; border-bottom: 1px solid #1e293b; }
+  th { color: #64748b; font-size: 11px; text-transform: uppercase; }
+  button, select, input[type="file"] { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; font-size: 13px; }
+  button { cursor: pointer; }
+  button:hover:not(:disabled) { background: #334155; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #frameInfo { font-size: 13px; color: #94a3b8; margin: 8px 0 16px; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<h1>Analisi posturale continua — video</h1>
+<p class="note">
+  Riproduce il video originale con sopra, in tempo reale, lo scheletro e le
+  sei metriche posturali già calcolate da <code>scripts/build-posture-timeline.cjs</code>
+  per OGNI fotogramma — non un singolo istante scelto a mano, l'intera azione.
+  Nessun file viene caricato da nessuna parte: video e JSON restano nel
+  browser, in memoria, esattamente come <code>tools/overhead-alignment.html</code>.
+  Usa i pulsanti "Frame" per avanzare un fotogramma alla volta e trovare a
+  occhio un momento preciso (es. l'ancoraggio), con lo scheletro già visibile
+  invece di indovinare un timestamp alla cieca.
+</p>
+
+<div class="toolbar">
+  <label>Video: <input type="file" id="videoInput" accept="video/*" /></label>
+  <label>Dati (JSON): <input type="file" id="jsonInput" accept="application/json" /></label>
+  <button id="playPauseBtn" disabled>Play</button>
+  <button id="prevFrameBtn" disabled>◀ Frame</button>
+  <button id="nextFrameBtn" disabled>Frame ▶</button>
+  <select id="rateSelect">
+    <option value="1">1.0x</option>
+    <option value="0.5">0.5x</option>
+    <option value="0.25">0.25x</option>
+    <option value="0.1">0.1x</option>
+  </select>
+</div>
+
+<div class="layout">
+  <div>
+    <div class="video-wrap" id="videoWrap">
+      <video id="video" muted playsinline></video>
+      <div id="overlay"></div>
+    </div>
+    <div id="frameInfo">Carica un video e un file JSON per iniziare.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Metriche (fotogramma corrente)</h2>
+    <table id="metricsTable">
+      <thead><tr><th>Metrica</th><th>Valore</th><th>Stato</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="../scripts/lib/render-skeleton-overlay-svg.cjs"></script>
+<script>
+  let timeline = null;
+  let currentFrameIndex = 0;
+
+  const video = document.getElementById("video");
+  const overlay = document.getElementById("overlay");
+  const videoWrap = document.getElementById("videoWrap");
+  const frameInfo = document.getElementById("frameInfo");
+  const playPauseBtn = document.getElementById("playPauseBtn");
+  const prevFrameBtn = document.getElementById("prevFrameBtn");
+  const nextFrameBtn = document.getElementById("nextFrameBtn");
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  document.getElementById("videoInput").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    video.src = URL.createObjectURL(file);
+    maybeEnableControls();
+  });
+
+  document.getElementById("jsonInput").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        timeline = JSON.parse(reader.result);
+      } catch (error) {
+        alert("File JSON non valido: " + error.message);
+        return;
+      }
+      videoWrap.style.aspectRatio = `${timeline.widthPixels} / ${timeline.heightPixels}`;
+      maybeEnableControls();
+    };
+    reader.readAsText(file);
+  });
+
+  function maybeEnableControls() {
+    const ready = Boolean(video.src) && Boolean(timeline);
+    playPauseBtn.disabled = !ready;
+    prevFrameBtn.disabled = !ready;
+    nextFrameBtn.disabled = !ready;
+  }
+
+  // Binary search: timeline.frames is sorted by timestampMilliseconds
+  // (build-posture-timeline.cjs writes them out in decode order).
+  function findFrameIndexForTime(seconds) {
+    const targetMs = seconds * 1000;
+    const frames = timeline.frames;
+    let low = 0;
+    let high = frames.length - 1;
+    if (targetMs <= frames[0].timestampMilliseconds) return 0;
+    if (targetMs >= frames[high].timestampMilliseconds) return high;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (frames[mid].timestampMilliseconds < targetMs) low = mid + 1;
+      else high = mid;
+    }
+    if (low > 0 && Math.abs(frames[low - 1].timestampMilliseconds - targetMs) <=
+        Math.abs(frames[low].timestampMilliseconds - targetMs)) {
+      return low - 1;
+    }
+    return low;
+  }
+
+  function renderCurrentFrame() {
+    if (!timeline) return;
+    currentFrameIndex = findFrameIndexForTime(video.currentTime);
+    const frame = timeline.frames[currentFrameIndex];
+
+    const svg = renderSkeletonOverlaySvg({
+      keypoints: frame.keypoints,
+      postureResults: frame.postureResults,
+      drawSide: timeline.drawSide,
+      widthPixels: timeline.widthPixels,
+      heightPixels: timeline.heightPixels
+    });
+    overlay.innerHTML = svg || "";
+
+    updateMetricsTable(frame.postureResults);
+    frameInfo.textContent =
+      `t = ${frame.timestampMilliseconds.toFixed(0)} ms — fotogramma ${currentFrameIndex + 1}/${timeline.frames.length}`;
+  }
+
+  function updateMetricsTable(results) {
+    const tbody = document.querySelector("#metricsTable tbody");
+    tbody.innerHTML = (results || []).map((result) => {
+      const hasValue = result.valueDegrees !== null && result.status !== null;
+      const color = !hasValue ? "#64748b"
+        : result.status === "ok" ? "#4ade80"
+        : result.status === "warning" ? "#fb923c"
+        : "#f87171";
+      const valueText = hasValue ? `${result.valueDegrees.toFixed(1)}°` : "n/d";
+      const statusText = hasValue ? result.status : "keypoint non rilevato";
+      return `<tr><td>${escapeHtml(result.name)}</td>` +
+        `<td style="color:${color};font-weight:bold">${valueText}</td>` +
+        `<td style="color:${color}">${escapeHtml(statusText)}</td></tr>`;
+    }).join("");
+  }
+
+  // Continuous sync while playing: requestVideoFrameCallback fires once
+  // per actually-presented video frame (far more accurate than a fixed
+  // timer), falling back to the coarser 'timeupdate' event on browsers
+  // that don't support it.
+  video.addEventListener("loadeddata", () => {
+    renderCurrentFrame();
+    if (video.requestVideoFrameCallback) {
+      const loop = () => {
+        renderCurrentFrame();
+        video.requestVideoFrameCallback(loop);
+      };
+      video.requestVideoFrameCallback(loop);
+    } else {
+      video.addEventListener("timeupdate", renderCurrentFrame);
+    }
+  });
+
+  // Covers the paused/scrubbing case for both sync strategies above —
+  // requestVideoFrameCallback does not fire while paused.
+  video.addEventListener("seeked", renderCurrentFrame);
+
+  playPauseBtn.addEventListener("click", () => {
+    if (video.paused) {
+      video.play();
+      playPauseBtn.textContent = "Pausa";
+    } else {
+      video.pause();
+      playPauseBtn.textContent = "Play";
+    }
+  });
+
+  document.getElementById("rateSelect").addEventListener("change", (event) => {
+    video.playbackRate = Number(event.target.value);
+  });
+
+  prevFrameBtn.addEventListener("click", () => {
+    if (!timeline) return;
+    video.pause();
+    playPauseBtn.textContent = "Play";
+    const index = Math.max(0, currentFrameIndex - 1);
+    video.currentTime = timeline.frames[index].timestampMilliseconds / 1000;
+  });
+
+  nextFrameBtn.addEventListener("click", () => {
+    if (!timeline) return;
+    video.pause();
+    playPauseBtn.textContent = "Play";
+    const index = Math.min(timeline.frames.length - 1, currentFrameIndex + 1);
+    video.currentTime = timeline.frames[index].timestampMilliseconds / 1000;
+  });
+</script>
+</body>
+</html>
