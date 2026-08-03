@@ -500,17 +500,30 @@ the script.
   detection error at all. The lesson: `inspect-posture.cjs`'s
   "midpoint of duration" default is a blind guess and should not be
   trusted for any video without checking what it actually landed on —
-  pass an explicit `timestampMilliseconds` found by eye instead. A
-  fast way to find a real Anchor moment without scrubbing raw video:
-  `scripts/inspect-elbow-angle.cjs` (see above) already charts this
-  same draw-arm elbow angle over the *entire* video — the flat plateau
-  right before the sharp drop into Release is Anchor; read that
-  plateau's timestamp off the chart's x-axis and pass it straight to
-  `inspect-posture.cjs`. (Note this is a different signal than
-  `phase-detection/detectShootingPhases()`'s wrist-velocity approach,
-  which this specific slow-motion video was already found unsuitable
-  for — a static per-frame angle is far less sensitive to the warmup
-  noise that made velocity-based detection unreliable here.)
+  pass an explicit `timestampMilliseconds` instead.
+
+  A follow-up guess turned out wrong too, corrected here rather than
+  left standing: the expectation was that `scripts/inspect-elbow-angle.cjs`'s
+  existing per-frame chart would show a clean plateau right before
+  Release, readable by eye to find Anchor without scrubbing raw video.
+  Checked against the real chart for this specific slow-motion video —
+  it doesn't. The whole signal is noisy (large swings, no stable
+  plateau anywhere), most severely in the first ~11 seconds but never
+  fully settling afterward either. This is not a new problem: it is
+  the *same* pose-detection instability already documented elsewhere
+  in this README as the reason `phase-detection/detectShootingPhases()`
+  was found unsuitable for this particular video (shoulder-width
+  instability well past the usual 300ms warmup window, recurring
+  noise throughout the clip) — it turns out to affect this angle
+  signal too, contrary to the (wrong, now corrected) assumption that a
+  static per-frame angle would be less sensitive to it than a velocity
+  derivative. This video stays what it was already decided to be: a
+  visual reference, not a source of automated timestamps. Finding a
+  real Anchor moment in it means scrubbing the actual video by eye and
+  reading the timestamp off the player — or picking one of the
+  normal-speed calibration clips `detect-phases.cjs` already handles
+  well instead, if the goal is a clean first posture-overlay example
+  rather than specifically this video.
 
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check
