@@ -95,6 +95,16 @@ function extractFrameJpeg(videoFilePath, timestampMilliseconds, outputJpegPath) 
         "-y",
         "-i", videoFilePath,
         "-ss", timestampSeconds,
+        // -update 1: this ffmpeg version (6.0, confirmed on the real
+        // Mac) otherwise warns that a plain, non-pattern filename
+        // ("frame.jpg" rather than "frame_%03d.jpg") isn't a valid
+        // image-sequence target for the image2 muxer, and recommends
+        // exactly this flag for writing a single still image to one
+        // fixed filename. Harmless without it for a single frame in
+        // this ffmpeg version, but not guaranteed to stay that way —
+        // worth being explicit rather than relying on a warning
+        // happening to be non-fatal.
+        "-update", "1",
         "-frames:v", "1",
         "-q:v", "2",
         outputJpegPath
