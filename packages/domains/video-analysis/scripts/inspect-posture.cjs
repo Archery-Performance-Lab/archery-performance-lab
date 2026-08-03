@@ -95,7 +95,7 @@ function extractFrameJpeg(videoFilePath, timestampMilliseconds, outputJpegPath) 
         "-y",
         "-i", videoFilePath,
         "-ss", timestampSeconds,
-        "-frames:1",
+        "-frames:v", "1",
         "-q:v", "2",
         outputJpegPath
     ]);
