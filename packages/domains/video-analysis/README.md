@@ -462,18 +462,37 @@ the script.
   **Verification status**: the pure logic (`analyzePosture()`, the two
   new geometry primitives) has real unit tests, and the SVG/HTML
   renderers were checked against synthetic keypoint data rendered to
-  PNG for a visual sanity check. The full pipeline against a *real*
-  video could only be partially verified from this dev sandbox: ffmpeg
-  metadata-reading worked once pointed at the sandbox's own
-  ffmpeg/ffprobe (the bundled `ffmpeg-static`/`ffprobe-static`
-  binaries in this mounted checkout are macOS binaries, installed on
-  the Mac this repo normally runs on — a pre-existing, already
-  documented sandbox limitation, not new), but real BlazePose
-  detection could not run at all: it needs to download model weights
-  from `tfhub.dev` on first use, and that host is not reachable from
-  this sandbox (same limitation `verify-pose-detector.cjs` already
-  documents). Run the command above on the real Mac to get the actual
-  first real-video verification.
+  PNG for a visual sanity check. The full pipeline could only be
+  partially verified from this dev sandbox (no `tfhub.dev` network
+  access to download BlazePose's model weights — same limitation
+  `verify-pose-detector.cjs` already documents), so real verification
+  happened on the real Mac, and surfaced three real, concrete bugs in
+  short order (all fixed, see CHANGELOG.md): the script's own argument
+  parsing didn't match its two sibling scripts' convention, ffmpeg's
+  `-frames:1` was a malformed option name (ffmpeg parsed `1` as a
+  stream specifier, not a frame count — should have been
+  `-frames:v 1`), and ffmpeg 6.0 warned about writing a single JPEG
+  without `-update 1`.
+
+  Once those were fixed, the pipeline ran genuinely end-to-end for the
+  first time — real BlazePose output, real posture metrics, a real
+  `.html` overlay — and surfaced a **known open question, not yet
+  resolved**: on that first real frame, all six metrics reported "OK",
+  but visually comparing the rendered skeleton to the photo showed the
+  draw-arm joints and the hips drawn in positions that did not match
+  what the photo actually shows (the draw elbow/wrist land away from
+  the visible arm; the hip alignment box lands near the bottom edge of
+  a frame that may not even show the hips). Two different explanations
+  are possible and not yet told apart: a genuinely low
+  `confidenceScore` for those joints that the 0.5 threshold should
+  have already filtered out (fixable by raising the threshold), or
+  BlazePose reporting *high* confidence for a joint it guessed wrong
+  because the real one is occluded or out of frame (not fixable by any
+  threshold — a real limitation of applying a model trained on fully
+  visible bodies to a partially-cropped/occluded one). `inspect-posture.cjs`
+  now also prints every keypoint's raw confidence score and pixel
+  position to the console specifically to answer this — not yet run
+  again with that logging in place.
 
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check

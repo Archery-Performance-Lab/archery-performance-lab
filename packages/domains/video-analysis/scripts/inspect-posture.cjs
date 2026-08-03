@@ -162,6 +162,25 @@ async function main() {
     }
     console.log(`  Using frame at t=${poseFrame.timestampMilliseconds.toFixed(0)}ms.`);
 
+    // Printed for a real reason, not just noise: a first real run
+    // against actual footage showed the drawn skeleton visually
+    // disagreeing with the photo for some joints (draw-arm elbow/wrist,
+    // hips) — this is the data needed to tell apart two different
+    // failure modes before guessing at a fix: a genuinely low
+    // confidenceScore (our 0.5 threshold should have caught it, or
+    // should be raised), versus BlazePose reporting high confidence
+    // for a keypoint it actually guessed wrong (a harder problem no
+    // threshold adjustment fixes). See README.md.
+    console.log("  Keypoint confidence scores:");
+    [...poseFrame.keypoints]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((keypoint) => {
+            console.log(
+                `    ${keypoint.name}: confidence=${keypoint.confidenceScore.toFixed(3)} ` +
+                    `(${keypoint.xPixels.toFixed(0)}, ${keypoint.yPixels.toFixed(0)})`
+            );
+        });
+
     const videoBaseName = path.parse(videoFilePath).name;
     const frameLabel = `t${poseFrame.timestampMilliseconds.toFixed(0)}ms`;
     const frameFileName = `${videoBaseName}_${frameLabel}.jpg`;
