@@ -4,5 +4,6 @@ export * from "./frame-extraction";
 export * from "./hand-tension";
 export * from "./phase-detection";
 export * from "./pose-estimation";
+export * from "./posture-analysis";
 export * from "./shot-analysis";
 export * from "./types";

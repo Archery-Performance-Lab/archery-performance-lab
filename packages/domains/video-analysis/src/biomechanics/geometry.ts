@@ -103,3 +103,82 @@ export function perpendicularDistanceFromLinePixels(
 
     return crossProduct / lineLength;
 }
+
+/**
+ * How far a line between two keypoints deviates from perfectly
+ * horizontal, in degrees — 0 means level, 90 means vertical. Folded
+ * into [0, 90] (via min(angle, 180-angle)) so the result does not
+ * depend on which keypoint is passed first: a line and its reverse
+ * describe the same tilt.
+ *
+ * This is the building block behind "are the two shoulders level?" /
+ * "are the two hips level?" / "is the head tilted?" checks — each is
+ * just this function applied to a different pair of keypoints
+ * (left/right shoulder, left/right hip, left/right ear). Ported from
+ * a real, working reference implementation (a third-party browser
+ * tool, "Archery Posture Tracker" at ghiggo.altervista.org/posture,
+ * whose client-side source was read directly — its `angleLine()` +
+ * `Math.min(angle, 180-angle)` folding does exactly this), not
+ * invented from scratch — see posture-analysis/ for how the six
+ * metrics that reference tool computes are reproduced here with our
+ * own keypoint/geometry primitives.
+ *
+ * Throws if the two keypoints coincide, for the same reason
+ * angleAtJointDegrees() throws on a zero-length ray: the angle of a
+ * single point is undefined, not zero.
+ */
+export function angleFromHorizontalDegrees(
+    firstKeypoint: PoseKeypoint,
+    secondKeypoint: PoseKeypoint
+): number {
+    const deltaX = secondKeypoint.xPixels - firstKeypoint.xPixels;
+    const deltaY = secondKeypoint.yPixels - firstKeypoint.yPixels;
+
+    const ZERO_LENGTH_TOLERANCE_PIXELS = 1e-9;
+    if (Math.sqrt(deltaX * deltaX + deltaY * deltaY) < ZERO_LENGTH_TOLERANCE_PIXELS) {
+        throw new Error(
+            "Cannot compute an angle from horizontal: the two keypoints coincide"
+        );
+    }
+
+    const rawAngleDegrees = Math.abs((Math.atan2(deltaY, deltaX) * 180) / Math.PI);
+
+    return Math.min(rawAngleDegrees, 180 - rawAngleDegrees);
+}
+
+/**
+ * How far a line between two keypoints deviates from perfectly
+ * vertical, in degrees — 0 means a plumb-straight line (top keypoint
+ * directly above bottomKeypoint), larger values mean it leans
+ * sideways. Unlike angleFromHorizontalDegrees(), this is NOT folded
+ * into [0, 90]: for a standing archer this stays a small number near
+ * 0 regardless, and keeping the direct atan2 result (rather than
+ * min(angle, 180-angle)) matches the reference implementation this
+ * was ported from (see angleFromHorizontalDegrees()'s doc comment)
+ * exactly, so results are directly comparable.
+ *
+ * Intended use: torso verticality, passing the midpoint between both
+ * shoulders as `topKeypoint` and the midpoint between both hips as
+ * `bottomKeypoint` — a real archer's torso should stay close to
+ * upright throughout the shot, not lean toward the target or away
+ * from it.
+ *
+ * Throws if the two keypoints coincide, same reasoning as
+ * angleAtJointDegrees()/angleFromHorizontalDegrees().
+ */
+export function tiltFromVerticalDegrees(
+    topKeypoint: PoseKeypoint,
+    bottomKeypoint: PoseKeypoint
+): number {
+    const deltaX = bottomKeypoint.xPixels - topKeypoint.xPixels;
+    const deltaY = bottomKeypoint.yPixels - topKeypoint.yPixels;
+
+    const ZERO_LENGTH_TOLERANCE_PIXELS = 1e-9;
+    if (Math.sqrt(deltaX * deltaX + deltaY * deltaY) < ZERO_LENGTH_TOLERANCE_PIXELS) {
+        throw new Error(
+            "Cannot compute a tilt from vertical: the two keypoints coincide"
+        );
+    }
+
+    return Math.abs((Math.atan2(deltaX, deltaY) * 180) / Math.PI);
+}

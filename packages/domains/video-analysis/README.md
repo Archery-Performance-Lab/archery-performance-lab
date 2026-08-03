@@ -12,14 +12,18 @@ frame-extraction module (`readVideoMetadata`,
 (`shot-analysis/analyzeShotVideo`, plus
 `analyzeShotVideoWithFrames()` for callers that need the raw pixels),
 a `biomechanics` module of pure geometric/kinematic signal functions
-(distance, angle, velocity between keypoints), a **first-pass,
-provisional** `phase-detection/detectShootingPhases()`, and a
-`hand-tension/` module (a candidate, unvalidated texture-based proxy
-for visible tendon tension in the string hand) all exist.
-`detectShootingPhases()` detects Anchor, Release and FollowThrough
-from real calibration footage; Stance, Nocking, SetUp, PreDraw,
-Drawing, Aiming and Expansion are not detected yet — see
-`phase-detection/` below for exactly why and what each would need.
+(distance, angle, velocity, angle-from-horizontal, tilt-from-vertical
+between keypoints), a **first-pass, provisional**
+`phase-detection/detectShootingPhases()`, a `hand-tension/` module (a
+candidate, unvalidated texture-based proxy for visible tendon tension
+in the string hand), and a `posture-analysis/` module (six real-time
+postural checks — shoulder/hip level, both elbow angles, head tilt,
+torso verticality — plus a skeleton-overlay renderer for viewing them
+on a single video frame) all exist. `detectShootingPhases()` detects
+Anchor, Release and FollowThrough from real calibration footage;
+Stance, Nocking, SetUp, PreDraw, Drawing, Aiming and Expansion are not
+detected yet — see `phase-detection/` below for exactly why and what
+each would need.
 
 The pose-estimation wrapper is type-checked and written against the
 real `@tensorflow-models/pose-detection` API (its `.d.ts` files were
@@ -367,3 +371,102 @@ the script.
   couldn't be verified from this sandbox, the design was changed to a
   plain horizontal label instead of shipping an unverified assumption.
   Open the `.svg` files directly in a real browser to view the charts.
+
+- `posture-analysis/` — six postural checks computed from a single
+  `PoseFrame`: shoulder level, hip level, bow-arm elbow angle,
+  draw-arm elbow angle, head tilt, torso verticality.
+  `analyzePosture(frame, drawSide, metricDefinitions?)` returns one
+  result per metric (`valueDegrees`, `status: "ok" | "warning" |
+  "outOfRange"`), `null` for both when a metric's required keypoints
+  are missing or below confidence — a real "cannot tell", not a
+  misleading 0°. Two new pure `biomechanics/` primitives back this:
+  `angleFromHorizontalDegrees()` (how far a line deviates from level —
+  shoulders, hips, ears) and `tiltFromVerticalDegrees()` (how far a
+  line deviates from plumb — torso).
+
+  This module, and the skeleton-overlay renderer below, are ported
+  deliberately closely from a real, working reference implementation:
+  "Archery Posture Tracker" (ghiggo.altervista.org/posture), a
+  third-party browser tool built on MediaPipe Pose (the same
+  underlying model family as this project's BlazePose — see the
+  elbow-angle script above for that same point made independently).
+  Its client-side source is plain, unminified JavaScript and was read
+  directly rather than reverse-engineered from watching it run — the
+  exact keypoints, formulas, and default ideal/warning ranges
+  (`DEFAULT_POSTURE_METRICS` in `posture-analysis/metrics.ts`) are
+  copied from it, not re-derived or guessed. That reference tool
+  itself treats those default ranges as a per-archer starting point,
+  not a fixed truth — it has a "Cattura" (capture) feature that
+  rebuilds a profile's ranges from an archer's own good position
+  rather than trusting a universal number. `DEFAULT_POSTURE_METRICS`
+  carries the same caveat here: it is a real, working starting point,
+  but has not been calibrated against any footage in this project —
+  whoever consumes it should let a coach override it from a real
+  captured position, not treat it as validated for Tommaso or any
+  other specific archer.
+
+  Two things that reference tool does that are worth naming
+  explicitly because this module does NOT do them: it always computes
+  the same six metrics regardless of camera angle (no detection of
+  front/back/side/overhead framing), and it is a completely different
+  check from the "Livello Avanzato per l'istruttore" manual's
+  overhead-view alignment triangle (bow hand / draw elbow / head,
+  plus a forearm-to-arrow alignment line) — the manual's check needs a
+  camera positioned directly above the archer and was not
+  reproduced here; see the "Next steps" below for where that stands.
+
+  `scripts/lib/render-skeleton-overlay-svg.cjs` draws the skeleton
+  (connecting lines + keypoint dots, confidence-aware — a connection
+  or dot is only drawn when its keypoint(s) meet a confidence
+  threshold, so a partial/lateral view naturally yields a partial
+  skeleton rather than needing separate code paths per camera angle),
+  the two elbow-angle readouts, and dashed shoulder/hip alignment
+  boxes, color-coded by status — same drawing logic as the reference
+  tool's canvas code, ported to a plain SVG string (this project's
+  established zero-dependency approach, same as the elbow-angle
+  chart). `scripts/lib/render-posture-overlay-html.cjs` wraps one
+  extracted frame image and that SVG into a single standalone `.html`
+  file (image and SVG stacked via `position:absolute`, both stretched
+  to the same container so they stay pixel-aligned at any zoom level),
+  plus a metrics table underneath — opens directly in any browser, no
+  new dependency, consistent with the browser-first client-side
+  architecture decision (`docs/architecture/AWI_WEB_INTERFACE.md`).
+
+  `scripts/inspect-posture.cjs [videoFilePath] [right|left]
+  [timestampMilliseconds]` ties this together for one video and one
+  frame at a time (same conservative, single-video-first pattern as
+  `inspect-slowmo-release.cjs`/`inspect-hand-tension.cjs`: prove a new,
+  unvalidated capability on one real frame before deciding whether to
+  batch it). It extracts that frame as a real JPG (accurate,
+  post-input `-ss` rather than fast pre-input seeking, so the JPG
+  lines up with the exact PoseFrame timestamp used for the overlay —
+  slower, but these calibration clips are short enough that it does
+  not matter), computes the six metrics, and writes one `.html` file
+  next to the JPG:
+
+  ```
+  cd packages/domains/video-analysis
+  npx tsc -p tsconfig.test.json
+  node scripts/inspect-posture.cjs right
+  ```
+
+  Defaults to the slow-motion Kim Woojin video and the midpoint of its
+  duration if no path/timestamp is given. Output goes to a new
+  `posture/` folder alongside `signals/` and `charts/`, outside this
+  repository.
+
+  **Verification status**: the pure logic (`analyzePosture()`, the two
+  new geometry primitives) has real unit tests, and the SVG/HTML
+  renderers were checked against synthetic keypoint data rendered to
+  PNG for a visual sanity check. The full pipeline against a *real*
+  video could only be partially verified from this dev sandbox: ffmpeg
+  metadata-reading worked once pointed at the sandbox's own
+  ffmpeg/ffprobe (the bundled `ffmpeg-static`/`ffprobe-static`
+  binaries in this mounted checkout are macOS binaries, installed on
+  the Mac this repo normally runs on — a pre-existing, already
+  documented sandbox limitation, not new), but real BlazePose
+  detection could not run at all: it needs to download model weights
+  from `tfhub.dev` on first use, and that host is not reachable from
+  this sandbox (same limitation `verify-pose-detector.cjs` already
+  documents). Run the command above on the real Mac to get the actual
+  first real-video verification.

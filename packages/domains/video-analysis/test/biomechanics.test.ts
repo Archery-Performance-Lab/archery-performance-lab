@@ -6,6 +6,8 @@ import {
     distanceBetweenKeypoints,
     angleAtJointDegrees,
     perpendicularDistanceFromLinePixels,
+    angleFromHorizontalDegrees,
+    tiltFromVerticalDegrees,
     keypointVelocityPixelsPerSecond
 } from "../src/biomechanics";
 import type { PoseFrame, PoseKeypoint } from "../src/types";
@@ -100,6 +102,66 @@ describe("biomechanics/geometry/perpendicularDistanceFromLinePixels", () => {
         const point = keypoint("start", 0, 0);
         const other = keypoint("other", 5, 5);
         assert.throws(() => perpendicularDistanceFromLinePixels(other, point, point));
+    });
+});
+
+describe("biomechanics/geometry/angleFromHorizontalDegrees", () => {
+    it("is zero for a perfectly level line", () => {
+        const left = keypoint("left_shoulder", 0, 50);
+        const right = keypoint("right_shoulder", 100, 50);
+        assert.ok(Math.abs(angleFromHorizontalDegrees(left, right)) < 1e-9);
+    });
+
+    it("is 90 for a perfectly vertical line", () => {
+        const top = keypoint("top", 50, 0);
+        const bottom = keypoint("bottom", 50, 100);
+        assert.ok(Math.abs(angleFromHorizontalDegrees(top, bottom) - 90) < 1e-9);
+    });
+
+    it("is symmetric under a small tilt regardless of point order", () => {
+        // A 10px rise over 100px run: atan(10/100) ≈ 5.71°.
+        const left = keypoint("left", 0, 10);
+        const right = keypoint("right", 100, 0);
+
+        const forward = angleFromHorizontalDegrees(left, right);
+        const reversed = angleFromHorizontalDegrees(right, left);
+
+        assert.ok(Math.abs(forward - reversed) < 1e-9);
+        assert.ok(Math.abs(forward - 5.7106) < 1e-3);
+    });
+
+    it("throws when the two keypoints coincide", () => {
+        const point = keypoint("point", 5, 5);
+        assert.throws(() => angleFromHorizontalDegrees(point, point));
+    });
+});
+
+describe("biomechanics/geometry/tiltFromVerticalDegrees", () => {
+    it("is zero for a perfectly plumb line", () => {
+        const top = keypoint("mid_shoulder", 50, 0);
+        const bottom = keypoint("mid_hip", 50, 100);
+        assert.ok(Math.abs(tiltFromVerticalDegrees(top, bottom)) < 1e-9);
+    });
+
+    it("is 90 for a perfectly horizontal line", () => {
+        const top = keypoint("a", 0, 50);
+        const bottom = keypoint("b", 100, 50);
+        assert.ok(Math.abs(tiltFromVerticalDegrees(top, bottom) - 90) < 1e-9);
+    });
+
+    it("computes a small lean angle", () => {
+        // 10px of horizontal drift over a 100px vertical drop:
+        // atan(10/100) ≈ 5.71°, same magnitude as the horizontal-line
+        // test above but measured from the vertical axis instead.
+        const top = keypoint("mid_shoulder", 0, 0);
+        const bottom = keypoint("mid_hip", 10, 100);
+
+        assert.ok(Math.abs(tiltFromVerticalDegrees(top, bottom) - 5.7106) < 1e-3);
+    });
+
+    it("throws when the two keypoints coincide", () => {
+        const point = keypoint("point", 5, 5);
+        assert.throws(() => tiltFromVerticalDegrees(point, point));
     });
 });
 
