@@ -33,6 +33,13 @@
   .video-wrap video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; object-fit: fill; }
   .video-wrap #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   .video-wrap #overlay svg { display: block; width: 100%; height: 100%; }
+  /* pointer-events:all on just the dots re-enables interaction with
+     them specifically (for manual dragging — see the "manual point
+     correction" block below) without making the whole #overlay div
+     (and therefore the video underneath it) intercept clicks/touches
+     it has no reason to. */
+  .video-wrap #overlay circle { pointer-events: all; cursor: grab; }
+  .video-wrap #overlay circle:active { cursor: grabbing; }
   .panel { min-width: 300px; max-width: 380px; }
   #mismatchWarning { display: none; background: #7f1d1d; color: #fecaca; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 8px 0; max-width: 900px; line-height: 1.5; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
@@ -56,7 +63,13 @@
   browser, in memoria, esattamente come <code>tools/overhead-alignment.html</code>.
   Usa i pulsanti "Frame" per avanzare un fotogramma alla volta e trovare a
   occhio un momento preciso (es. l'ancoraggio), con lo scheletro già visibile
-  invece di indovinare un timestamp alla cieca.
+  invece di indovinare un timestamp alla cieca. Ogni punto (pallino blu) è
+  spostabile con il mouse: se BlazePose ha rilevato una posizione sbagliata,
+  trascina il punto dove dovrebbe essere davvero — diventa arancione per
+  segnalare che è stato corretto a mano, e le metriche a destra si
+  ricalcolano subito con la posizione corretta. "Ripristina fotogramma"
+  annulla tutte le correzioni fatte sul fotogramma corrente, tornando ai
+  valori rilevati automaticamente.
 </p>
 
 <div class="toolbar">
@@ -65,6 +78,7 @@
   <button id="playPauseBtn" disabled>Play</button>
   <button id="prevFrameBtn" disabled>◀ Frame</button>
   <button id="nextFrameBtn" disabled>Frame ▶</button>
+  <button id="resetFrameBtn" disabled>Ripristina fotogramma</button>
   <select id="rateSelect">
     <option value="1">1.0x</option>
     <option value="0.5">0.5x</option>
@@ -123,6 +137,10 @@
 
   const DEFAULT_CONFIDENCE_THRESHOLD = 0.5;
 
+  // Kept in sync by hand with scripts/lib/render-skeleton-overlay-svg.cjs
+  // (see its own comment on this same array — the last six entries,
+  // heel/foot_index, are a real extension added after Tommaso himself
+  // asked to see foot placement, not part of the original ghiggo port).
   const SKELETON_CONNECTIONS = [
     ["left_shoulder", "right_shoulder"],
     ["left_shoulder", "left_elbow"],
@@ -139,7 +157,13 @@
     ["nose", "left_ear"],
     ["nose", "right_ear"],
     ["left_ear", "left_shoulder"],
-    ["right_ear", "right_shoulder"]
+    ["right_ear", "right_shoulder"],
+    ["left_ankle", "left_heel"],
+    ["left_heel", "left_foot_index"],
+    ["left_ankle", "left_foot_index"],
+    ["right_ankle", "right_heel"],
+    ["right_heel", "right_foot_index"],
+    ["right_ankle", "right_foot_index"]
   ];
 
   function statusColor(status) {
@@ -211,12 +235,18 @@
       })
       .join("\n  ");
 
+    // data-name lets the drag handler below know which keypoint a given
+    // <circle> corresponds to. manuallyCorrected (set by
+    // applyManualCorrection() once a point has been dragged) switches
+    // its fill to amber so a manually-placed point is visually
+    // distinguishable from an automatically-detected one at a glance.
     const dotMarkup = keypoints
       .filter((keypoint) => keypoint.confidenceScore >= confidenceThreshold)
       .map(
         (keypoint) =>
-          `<circle cx="${keypoint.xPixels.toFixed(1)}" cy="${keypoint.yPixels.toFixed(1)}" r="5" ` +
-          `fill="#3b82f6" stroke="white" stroke-width="1.5" />`
+          `<circle data-name="${escapeXmlText(keypoint.name)}" cx="${keypoint.xPixels.toFixed(1)}" ` +
+          `cy="${keypoint.yPixels.toFixed(1)}" r="6" ` +
+          `fill="${keypoint.manuallyCorrected ? "#f59e0b" : "#3b82f6"}" stroke="white" stroke-width="1.5" />`
       )
       .join("\n  ");
 
@@ -272,6 +302,147 @@
 `;
   }
 
+  // ---- Manual point correction: duplicated analyzePosture() ----
+  //
+  // Duplicated from src/posture-analysis/analyze.ts + metrics.ts and
+  // the three geometry primitives from src/biomechanics/geometry.ts it
+  // calls (angleAtJointDegrees, angleFromHorizontalDegrees,
+  // tiltFromVerticalDegrees) — same tradeoff already made for
+  // renderSkeletonOverlaySvg above and for tools/overhead-alignment.html's
+  // math helpers: this static page has no build step, so it cannot
+  // import TypeScript. Needed here (and not before) because dragging a
+  // point to correct it has to be reflected in the metrics table too,
+  // not just redraw the dot in a new place — otherwise "drag to
+  // correct" would only ever be cosmetic. Kept in sync by hand with the
+  // real source files; if analyzePosture()'s logic changes there, it
+  // must change here too.
+  function angleAtJointDegrees(firstKeypoint, jointKeypoint, secondKeypoint) {
+    const firstRayX = firstKeypoint.xPixels - jointKeypoint.xPixels;
+    const firstRayY = firstKeypoint.yPixels - jointKeypoint.yPixels;
+    const secondRayX = secondKeypoint.xPixels - jointKeypoint.xPixels;
+    const secondRayY = secondKeypoint.yPixels - jointKeypoint.yPixels;
+    const firstRayLength = Math.sqrt(firstRayX * firstRayX + firstRayY * firstRayY);
+    const secondRayLength = Math.sqrt(secondRayX * secondRayX + secondRayY * secondRayY);
+    if (firstRayLength < 1e-9 || secondRayLength < 1e-9) {
+      throw new Error("Cannot compute an angle: one of the keypoints coincides with the joint keypoint");
+    }
+    const dotProduct = firstRayX * secondRayX + firstRayY * secondRayY;
+    const cosineOfAngle = dotProduct / (firstRayLength * secondRayLength);
+    const clampedCosine = Math.min(1, Math.max(-1, cosineOfAngle));
+    return (Math.acos(clampedCosine) * 180) / Math.PI;
+  }
+
+  function angleFromHorizontalDegrees(firstKeypoint, secondKeypoint) {
+    const deltaX = secondKeypoint.xPixels - firstKeypoint.xPixels;
+    const deltaY = secondKeypoint.yPixels - firstKeypoint.yPixels;
+    if (Math.sqrt(deltaX * deltaX + deltaY * deltaY) < 1e-9) {
+      throw new Error("Cannot compute an angle from horizontal: the two keypoints coincide");
+    }
+    const rawAngleDegrees = Math.abs((Math.atan2(deltaY, deltaX) * 180) / Math.PI);
+    return Math.min(rawAngleDegrees, 180 - rawAngleDegrees);
+  }
+
+  function tiltFromVerticalDegrees(topKeypoint, bottomKeypoint) {
+    const deltaX = bottomKeypoint.xPixels - topKeypoint.xPixels;
+    const deltaY = bottomKeypoint.yPixels - topKeypoint.yPixels;
+    if (Math.sqrt(deltaX * deltaX + deltaY * deltaY) < 1e-9) {
+      throw new Error("Cannot compute a tilt from vertical: the two keypoints coincide");
+    }
+    return Math.abs((Math.atan2(deltaX, deltaY) * 180) / Math.PI);
+  }
+
+  const MINIMUM_KEYPOINT_CONFIDENCE_SCORE = 0.5;
+
+  const DEFAULT_POSTURE_METRICS = [
+    { id: "shoulderLevel", name: "Allineamento spalle", idealRangeDegrees: [0, 10], warnRangeDegrees: [10, 20] },
+    { id: "bowArmElbow", name: "Gomito braccio arco", idealRangeDegrees: [160, 180], warnRangeDegrees: [145, 160] },
+    { id: "drawArmElbow", name: "Gomito braccio corda", idealRangeDegrees: [25, 40], warnRangeDegrees: [10, 50] },
+    { id: "headTilt", name: "Inclinazione testa", idealRangeDegrees: [0, 15], warnRangeDegrees: [15, 25] },
+    { id: "torsoVerticality", name: "Verticalità busto", idealRangeDegrees: [0, 5], warnRangeDegrees: [5, 12] },
+    { id: "hipLevel", name: "Livellamento bacino", idealRangeDegrees: [0, 8], warnRangeDegrees: [8, 15] }
+  ];
+
+  function evaluatePostureMetric(valueDegrees, definition) {
+    const [idealMinDegrees, idealMaxDegrees] = definition.idealRangeDegrees;
+    const [warnMinDegrees, warnMaxDegrees] = definition.warnRangeDegrees;
+    if (valueDegrees >= idealMinDegrees && valueDegrees <= idealMaxDegrees) return "ok";
+    if (valueDegrees >= warnMinDegrees && valueDegrees <= warnMaxDegrees) return "warning";
+    return "outOfRange";
+  }
+
+  function confidentKeypoint(frame, keypointName) {
+    const keypoint = frame.keypoints.find((k) => k.name === keypointName);
+    if (!keypoint || keypoint.confidenceScore < MINIMUM_KEYPOINT_CONFIDENCE_SCORE) {
+      return null;
+    }
+    return keypoint;
+  }
+
+  function midpointKeypoint(name, first, second) {
+    return {
+      name,
+      xPixels: (first.xPixels + second.xPixels) / 2,
+      yPixels: (first.yPixels + second.yPixels) / 2,
+      confidenceScore: Math.min(first.confidenceScore, second.confidenceScore)
+    };
+  }
+
+  function analyzePosture(frame, drawSide, metricDefinitions = DEFAULT_POSTURE_METRICS) {
+    const bowSide = drawSide === "right" ? "left" : "right";
+    const rawValuesByMetricId = {};
+
+    const leftShoulder = confidentKeypoint(frame, "left_shoulder");
+    const rightShoulder = confidentKeypoint(frame, "right_shoulder");
+    if (leftShoulder && rightShoulder) {
+      rawValuesByMetricId.shoulderLevel = angleFromHorizontalDegrees(leftShoulder, rightShoulder);
+    }
+
+    const bowShoulder = confidentKeypoint(frame, `${bowSide}_shoulder`);
+    const bowElbow = confidentKeypoint(frame, `${bowSide}_elbow`);
+    const bowWrist = confidentKeypoint(frame, `${bowSide}_wrist`);
+    if (bowShoulder && bowElbow && bowWrist) {
+      rawValuesByMetricId.bowArmElbow = angleAtJointDegrees(bowShoulder, bowElbow, bowWrist);
+    }
+
+    const drawShoulder = confidentKeypoint(frame, `${drawSide}_shoulder`);
+    const drawElbow = confidentKeypoint(frame, `${drawSide}_elbow`);
+    const drawWrist = confidentKeypoint(frame, `${drawSide}_wrist`);
+    if (drawShoulder && drawElbow && drawWrist) {
+      rawValuesByMetricId.drawArmElbow = angleAtJointDegrees(drawShoulder, drawElbow, drawWrist);
+    }
+
+    const leftEar = confidentKeypoint(frame, "left_ear");
+    const rightEar = confidentKeypoint(frame, "right_ear");
+    if (leftEar && rightEar) {
+      rawValuesByMetricId.headTilt = angleFromHorizontalDegrees(leftEar, rightEar);
+    }
+
+    const leftHip = confidentKeypoint(frame, "left_hip");
+    const rightHip = confidentKeypoint(frame, "right_hip");
+    if (leftHip && rightHip) {
+      rawValuesByMetricId.hipLevel = angleFromHorizontalDegrees(leftHip, rightHip);
+    }
+
+    if (leftShoulder && rightShoulder && leftHip && rightHip) {
+      const midShoulder = midpointKeypoint("mid_shoulder", leftShoulder, rightShoulder);
+      const midHip = midpointKeypoint("mid_hip", leftHip, rightHip);
+      rawValuesByMetricId.torsoVerticality = tiltFromVerticalDegrees(midShoulder, midHip);
+    }
+
+    return metricDefinitions.map((definition) => {
+      const valueDegrees = rawValuesByMetricId[definition.id];
+      if (valueDegrees === undefined) {
+        return { id: definition.id, name: definition.name, valueDegrees: null, status: null };
+      }
+      return {
+        id: definition.id,
+        name: definition.name,
+        valueDegrees,
+        status: evaluatePostureMetric(valueDegrees, definition)
+      };
+    });
+  }
+
   let timeline = null;
   let currentFrameIndex = 0;
 
@@ -282,6 +453,7 @@
   const playPauseBtn = document.getElementById("playPauseBtn");
   const prevFrameBtn = document.getElementById("prevFrameBtn");
   const nextFrameBtn = document.getElementById("nextFrameBtn");
+  const resetFrameBtn = document.getElementById("resetFrameBtn");
   const mismatchWarning = document.getElementById("mismatchWarning");
 
   // Real bug this caught in practice, not a hypothetical: loading a
@@ -393,6 +565,11 @@
     updateMetricsTable(frame.postureResults);
     frameInfo.textContent =
       `t = ${frame.timestampMilliseconds.toFixed(0)} ms — fotogramma ${currentFrameIndex + 1}/${timeline.frames.length}`;
+    // Each frame tracks its own correction state independently (see
+    // "manual point correction" below) — stepping to a different frame
+    // must not leave a stale enabled/disabled state from whichever
+    // frame was showing before.
+    resetFrameBtn.disabled = !frame._originalKeypoints;
   }
 
   function updateMetricsTable(results) {
@@ -461,6 +638,95 @@
     playPauseBtn.textContent = "Play";
     const index = Math.min(timeline.frames.length - 1, currentFrameIndex + 1);
     video.currentTime = timeline.frames[index].timestampMilliseconds / 1000;
+  });
+
+  // ---- Manual point correction: dragging ----
+  //
+  // Why this exists: DEFAULT_POSTURE_METRICS' ranges (and BlazePose
+  // itself) are unvalidated for any specific archer — see metrics.ts's
+  // own doc comment. A coach needs to be able to say "no, that
+  // keypoint is actually here" and see the six metrics recompute from
+  // the corrected position, both to sanity-check a suspicious BlazePose
+  // reading and to validate the metric thresholds themselves against a
+  // position the coach trusts more than the model.
+  //
+  // Uses the Pointer Events API (covers mouse and touch/pen with one
+  // set of listeners) rather than separate mouse/touch handlers.
+  // pointermove/pointerup are attached to window, not to the dragged
+  // circle or #overlay, because #overlay's innerHTML is replaced on
+  // every renderCurrentFrame() call (including mid-drag, once a moved
+  // point triggers a re-render) — a listener attached to a specific
+  // <circle> element would be destroyed the instant that element gets
+  // replaced by a freshly rendered one.
+  let draggingKeypointName = null;
+
+  overlay.addEventListener("pointerdown", (event) => {
+    const target = event.target;
+    if (!target || target.tagName !== "circle") return;
+    const name = target.getAttribute("data-name");
+    if (!name || !timeline) return;
+    draggingKeypointName = name;
+    // Stop playback while editing — recomputing metrics and re-rendering
+    // the SVG on every pointermove while the video is also advancing
+    // would fight over which frame is "current".
+    video.pause();
+    playPauseBtn.textContent = "Play";
+    event.preventDefault();
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (!draggingKeypointName || !timeline) return;
+    applyManualCorrection(draggingKeypointName, event.clientX, event.clientY);
+  });
+
+  window.addEventListener("pointerup", () => {
+    draggingKeypointName = null;
+  });
+
+  function applyManualCorrection(keypointName, clientX, clientY) {
+    const frame = timeline.frames[currentFrameIndex];
+    const keypoint = frame.keypoints.find((k) => k.name === keypointName);
+    if (!keypoint) return;
+
+    // Back up this frame's ORIGINAL keypoints on the first correction
+    // only, so "Ripristina fotogramma" can restore exactly what
+    // build-posture-timeline.cjs actually detected — not whatever the
+    // most recent drag happened to leave behind.
+    if (!frame._originalKeypoints) {
+      frame._originalKeypoints = frame.keypoints.map((k) => ({ ...k }));
+    }
+
+    // rect gives the on-screen box in CSS pixels; timeline.widthPixels/
+    // heightPixels is the original video's pixel space that every
+    // keypoint (and the SVG viewBox) is defined in. Converting through
+    // this ratio is only valid because both <video> (object-fit:fill)
+    // and the SVG (preserveAspectRatio="none") are forced to stretch
+    // identically to this exact box — see the CSS comments above.
+    const rect = videoWrap.getBoundingClientRect();
+    const scaleX = timeline.widthPixels / rect.width;
+    const scaleY = timeline.heightPixels / rect.height;
+
+    keypoint.xPixels = (clientX - rect.left) * scaleX;
+    keypoint.yPixels = (clientY - rect.top) * scaleY;
+    // A point the coach just placed by hand should always count as
+    // trustworthy: 1 clears both the 0.5 drawing threshold and
+    // analyzePosture()'s own confidence gate regardless of whatever
+    // BlazePose originally reported for it.
+    keypoint.confidenceScore = 1;
+    keypoint.manuallyCorrected = true;
+
+    frame.postureResults = analyzePosture(frame, timeline.drawSide);
+    renderCurrentFrame();
+  }
+
+  resetFrameBtn.addEventListener("click", () => {
+    if (!timeline) return;
+    const frame = timeline.frames[currentFrameIndex];
+    if (!frame._originalKeypoints) return;
+    frame.keypoints = frame._originalKeypoints;
+    delete frame._originalKeypoints;
+    frame.postureResults = analyzePosture(frame, timeline.drawSide);
+    renderCurrentFrame();
   });
 </script>
 </body>

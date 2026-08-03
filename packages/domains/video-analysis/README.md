@@ -645,6 +645,47 @@ the script.
   package couldn't (no network access to `tfhub.dev`); needs a real
   run on the Mac, including confirming the page now opens in Safari.
 
+  **Real test, real result:** a correctly-paired video/JSON test
+  against Tommaso's own footage (`IMG_1219.MOV`, a full-body frontal
+  view) confirmed the overlay is now correctly aligned — shoulders on
+  shoulders, hips on hips, face points on the face. Two follow-up
+  requests came directly from that real test, both added: (1)
+  **feet** — BlazePose's full 33-point model already reports
+  `left_heel`/`right_heel`/`left_foot_index`/`right_foot_index` (real
+  confidence scores above 0.9 in this footage), but `SKELETON_CONNECTIONS`
+  stopped at the ankles, matching ghiggo's own `CONN` array (which
+  never drew feet either). Added ankle–heel–foot_index connections for
+  both feet, in both `scripts/lib/render-skeleton-overlay-svg.cjs` and
+  the inline copy — a real, requested extension beyond the ported
+  reference, documented as such. (2) **manual point correction** —
+  every rendered keypoint dot is now draggable (Pointer Events API):
+  dragging updates that keypoint's pixel position for the current
+  frame, marks it `manuallyCorrected` (drawn amber instead of blue),
+  sets its confidence to 1, and immediately recomputes and redraws that
+  frame's six posture metrics from the corrected position. A
+  "Ripristina fotogramma" button restores the frame's originally
+  detected keypoints (backed up on first edit). This exists because
+  `DEFAULT_POSTURE_METRICS`' ranges are explicitly unvalidated (see
+  `posture-analysis/` above) — a coach needs to distinguish "BlazePose
+  got this wrong" from "the metric threshold itself is wrong" by
+  correcting a point and watching the number change, not just eyeball
+  a static overlay.
+
+  Recomputing metrics client-side needed `analyzePosture()`
+  (`src/posture-analysis/analyze.ts`), its `metrics.ts` constants, and
+  three `biomechanics/geometry.ts` primitives duplicated into the
+  page's inline script — the same reason the SVG renderer already is
+  duplicated there (no build step, cannot `import`/`require()`).
+  **Verification**: this duplication was checked for faithfulness, not
+  just syntax — the inline script's `analyzePosture()` was extracted
+  via Node's `vm` module and run against every 5th frame (86 of 428) of
+  the real `IMG_1219_timeline.json`, comparing every metric's value and
+  status against the actual compiled `analyzePosture()` from
+  `dist-test/src`: zero mismatches. Also confirmed directly against
+  that same real timeline that the new foot connections render
+  (`left_heel`/`right_foot_index` circles present in the generated
+  SVG). `tsc -p tsconfig.test.json` clean, all 66 tests still pass.
+
 - `manual-annotation/` — for a real, still-open check this package
   cannot do automatically: Filippo Clini's manual has a coaching check
   (bow hand / draw elbow / head forming a triangle, plus a
