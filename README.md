@@ -19,8 +19,8 @@
 
 *"Measure before interpreting. Document before concluding."*
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
-![Status](https://img.shields.io/badge/status-Repository%20Foundation-success)
+![Version](https://img.shields.io/badge/version-0.2.0--dev-blue)
+![Status](https://img.shields.io/badge/status-Active%20Development-success)
 ![License](https://img.shields.io/badge/license-Apache%202.0-orange)
 
 ---
@@ -142,45 +142,55 @@ Additional modules will be introduced as the project evolves.
 
 # Repository Structure
 
+APL is a pnpm/Turborepo monorepo.
+
 ```
 archery-performance-lab/
 │
-├── .github/
+├── apps/                       # User-facing applications (planned: api, web)
+├── assets/                     # Logos and static images
+├── docker/                     # Docker resources for local dev/deployment (planned)
 ├── docs/
-├── modules/
-├── datasets/
-├── examples/
-├── src/
+│   ├── ADR/                    # Architecture Decision Records
+│   ├── architecture/           # System, engine and interface architecture docs
+│   ├── databases/              # Domain database specs (AMD, ADB, AKG, AED, APD, AKB)
+│   └── standards/              # APL implementation standards
+├── packages/
+│   ├── core/
+│   │   └── ace/                 # @apl/ace — Archery Calculation Engine
+│   └── domains/
+│       └── video-analysis/      # @apl/video-analysis — M06 pose/posture/phase analysis
+├── scripts/                     # Automation scripts (planned)
+├── tests/                       # Integration/E2E tests (planned)
+├── tools/                       # Developer utilities (planned)
 │
 ├── README.md
 ├── LICENSE
 ├── CHANGELOG.md
 ├── ROADMAP.md
+├── MANIFESTO.md
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
 ├── SECURITY.md
 ├── CITATION.cff
-├── .gitignore
-└── .editorconfig
+├── package.json
+├── pnpm-workspace.yaml
+├── turbo.json
+└── .gitignore
 ```
 
 ---
 
 # Development Status
 
-Current Release
+Last tagged release: **v0.1.0 – Repository Foundation** (project philosophy, documentation standards, repository structure, governance principles).
 
-**v0.1.0 – Repository Foundation**
+Since then, development has moved into the pnpm/Turborepo monorepo under `packages/`, ahead of the next tag:
 
-This release establishes:
+- `@apl/ace` (`packages/core/ace`) — Archery Calculation Engine: domain types, validations, and physics/tuning calculations (ballistics, FOC, kinetic energy, momentum, arrow speed, time of flight, plunger tuning). 73 unit tests.
+- `@apl/video-analysis` (`packages/domains/video-analysis`, module M06) — pose estimation, shooting-phase detection, posture analysis, hand-tension and timing calculations, plus manual-annotation and video-review tooling. 66 unit tests.
 
-- Project philosophy
-- Documentation standards
-- Repository structure
-- Governance principles
-- Development methodology
-
-No production software is included in this release.
+139 tests pass across both packages (`pnpm test`), and `pnpm build`/`pnpm check` are clean. See `CHANGELOG.md` for the detailed, in-progress history and `ROADMAP.md` for per-milestone status (v0.2.0 content-complete, v0.3.0–v0.6.0 in progress).
 
 ---
 
