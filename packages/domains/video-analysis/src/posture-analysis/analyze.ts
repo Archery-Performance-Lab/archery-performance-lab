@@ -2,7 +2,8 @@ import {
     findKeypoint,
     angleAtJointDegrees,
     angleFromHorizontalDegrees,
-    tiltFromVerticalDegrees
+    tiltFromVerticalDegrees,
+    angleBetweenLinesDegrees
 } from "../biomechanics";
 import type { PoseFrame, PoseKeypoint } from "../types";
 import { DEFAULT_POSTURE_METRICS, evaluatePostureMetric } from "./metrics";
@@ -34,8 +35,11 @@ export interface PostureMetricResult {
     valueDegrees: number | null;
 
     /**
-     * null exactly when valueDegrees is null: a status is only
-     * meaningful once there is a real value to classify.
+     * null when valueDegrees is null (nothing to classify), OR when
+     * valueDegrees is a real number but the metric's definition has no
+     * idealRangeDegrees/warnRangeDegrees configured yet (see
+     * footStanceAngle in DEFAULT_POSTURE_METRICS — a real angle with
+     * no default classification until a coach captures one).
      */
     status: PostureMetricStatus | null;
 }
@@ -58,7 +62,7 @@ function midpointKeypoint(name: string, first: PoseKeypoint, second: PoseKeypoin
 }
 
 /**
- * Computes the six posture metrics from `metricDefinitions` (defaults
+ * Computes the seven posture metrics from `metricDefinitions` (defaults
  * to DEFAULT_POSTURE_METRICS — see metrics.ts for why those specific
  * numbers should not be treated as validated for any real archer yet)
  * against a single PoseFrame.
@@ -122,6 +126,21 @@ export function analyzePosture(
         const midShoulder = midpointKeypoint("mid_shoulder", leftShoulder, rightShoulder);
         const midHip = midpointKeypoint("mid_hip", leftHip, rightHip);
         rawValuesByMetricId.torsoVerticality = tiltFromVerticalDegrees(midShoulder, midHip);
+    }
+
+    /**
+     * Stance "opening" relative to the pelvis: the angle between the
+     * feet line (left_heel↔right_heel — heels, not ankles or toes,
+     * per direct request) and the hip line (left_hip↔right_hip). Uses
+     * angleBetweenLinesDegrees() because these two lines do not share
+     * a vertex, unlike angleAtJointDegrees()'s use elsewhere in this
+     * function. See metrics.ts's DEFAULT_POSTURE_METRICS entry for why
+     * this metric has no default ideal/warn range.
+     */
+    const leftHeel = confidentKeypoint(frame, "left_heel");
+    const rightHeel = confidentKeypoint(frame, "right_heel");
+    if (leftHeel && rightHeel && leftHip && rightHip) {
+        rawValuesByMetricId.footStanceAngle = angleBetweenLinesDegrees(leftHeel, rightHeel, leftHip, rightHip);
     }
 
     return metricDefinitions.map((definition) => {

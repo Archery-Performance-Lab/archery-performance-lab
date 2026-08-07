@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<title>Annotazione manuale — angoli su video (vista dall'alto)</title>
+<style>
+  body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 14px; color: #94a3b8; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.04em; }
+  p.note { color: #94a3b8; font-size: 13px; max-width: 900px; line-height: 1.5; }
+  .layout { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+  canvas { border: 1px solid #334155; max-width: 640px; width: 100%; cursor: crosshair; background: #1e293b; }
+  video { display: none; }
+  .panel { min-width: 320px; max-width: 420px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
+  th, td { text-align: left; padding: 3px 8px 3px 0; border-bottom: 1px solid #1e293b; }
+  th { color: #64748b; font-size: 11px; text-transform: uppercase; }
+  button, select, input[type="text"], input[type="number"] { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; font-size: 13px; }
+  button { cursor: pointer; }
+  button:hover { background: #334155; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+  .delete-link { color: #f87171; cursor: pointer; font-size: 12px; }
+  .error-text { color: #f87171; }
+  .value-text { color: #4ade80; font-weight: bold; }
+  .toolbar { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+  .playback { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; align-items: center; }
+  #frameInfo { color: #94a3b8; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>Annotazione manuale — angoli su video (vista dall'alto)</h1>
+<p class="note">
+  Versione "player" di <code>tools/overhead-alignment.html</code>: stessa idea (i punti li
+  posiziona una persona, non un modello — vedi il controllo di allineamento del manuale "Livello
+  Avanzato per l'istruttore", mano dell'arco / gomito di trazione / allineamento
+  avambraccio-freccia), ma su un video invece che su una singola foto, per poter confrontare
+  pretrazione e trazione all'interno dello stesso tiro reale. <strong>Richiede un'inquadratura
+  dall'alto</strong> — l'accuratezza di BlazePose da questa angolazione non è mai stata verificata
+  (le riprese frontali/posteriori funzionano bene, altre angolazioni ingannano il rilevamento
+  automatico), motivo per cui qui i punti restano manuali invece di provare a automatizzarli.
+  Nessun video lascia questo browser — tutta l'elaborazione è locale (nessun upload, nessun
+  server). I valori mostrati qui sono un'anteprima calcolata da una copia a mano delle stesse
+  formule già testate in <code>src/biomechanics/geometry.ts</code> (mantenuta sincronizzata
+  manualmente, non tramite build) — per il calcolo autorevole, esporta il JSON e lancia
+  <code>scripts/compute-annotated-angles.cjs</code>, che passa attraverso il vero codice
+  TypeScript testato (ora esteso per leggere anche l'esportazione multi-fotogramma di questa
+  pagina, non solo quella a singola immagine dell'altro tool).
+</p>
+
+<div class="toolbar">
+  <label>Video: <input type="file" id="videoInput" accept="video/*" /></label>
+  <button id="clearFramePointsBtn" disabled>Elimina punti di questo fotogramma</button>
+  <button id="copyPreviousBtn" disabled>Copia punti dal fotogramma precedente</button>
+  <button id="clearRequestsBtn">Elimina tutte le richieste</button>
+  <button id="exportBtn" disabled>Esporta JSON</button>
+  <label>Importa JSON: <input type="file" id="importInput" accept="application/json" /></label>
+</div>
+
+<div class="playback">
+  <button id="playPauseBtn" disabled>Play</button>
+  <button id="prevFrameBtn" disabled>◀ Fotogramma</button>
+  <button id="nextFrameBtn" disabled>Fotogramma ▶</button>
+  <label>Passo (ms): <input type="number" id="stepMsInput" value="33" min="1" step="1" style="width: 70px" /></label>
+  <span id="frameInfo">Nessun video caricato.</span>
+</div>
+
+<div class="layout">
+  <div>
+    <video id="video" muted playsinline></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Punti (fotogramma corrente)</h2>
+    <table id="pointsTable">
+      <thead><tr><th>Nome</th><th>x</th><th>y</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <h2>Nuova richiesta</h2>
+    <div class="row">
+      <select id="requestType">
+        <option value="angleAtJoint">Angolo a un vertice (3 punti)</option>
+        <option value="angleFromHorizontal">Inclinazione da orizzontale (2 punti)</option>
+        <option value="tiltFromVertical">Inclinazione da verticale (2 punti)</option>
+        <option value="angleBetweenLines">Angolo tra due linee (4 punti)</option>
+        <option value="distance">Distanza in pixel (2 punti)</option>
+      </select>
+    </div>
+    <div id="requestFields"></div>
+    <div class="row">
+      <input type="text" id="requestId" placeholder="etichetta (es. gomito_corda)" />
+      <button id="addRequestBtn">Aggiungi richiesta</button>
+    </div>
+    <p class="note">
+      Le richieste sono globali (valgono per ogni fotogramma): usa nomi punto coerenti tra un
+      fotogramma e l'altro (es. sempre <code>gomito_corda</code>, mai <code>gomito_corda_2</code>)
+      perché la stessa richiesta si applichi automaticamente ovunque quel nome esista.
+    </p>
+
+    <h2>Risultati (fotogramma corrente)</h2>
+    <table id="resultsTable">
+      <thead><tr><th>Etichetta</th><th>Valore</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  // ── Copia a mano delle primitive di src/biomechanics/geometry.ts ──────────
+  // Mantenuta sincronizzata a mano, non tramite build/bundler — stessa
+  // convenzione già documentata in tools/overhead-alignment.html, di cui
+  // questo file è la versione "player". Il calcolo autorevole resta
+  // scripts/compute-annotated-angles.cjs, che chiama il vero codice
+  // TypeScript testato in src/manual-annotation/.
+  const ZERO_LENGTH_TOLERANCE = 1e-9;
+
+  function distancePixels(a, b) {
+    const dx = b.xPixels - a.xPixels, dy = b.yPixels - a.yPixels;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function angleAtJointDegrees(a, joint, b) {
+    const ax = a.xPixels - joint.xPixels, ay = a.yPixels - joint.yPixels;
+    const bx = b.xPixels - joint.xPixels, by = b.yPixels - joint.yPixels;
+    const al = Math.sqrt(ax * ax + ay * ay), bl = Math.sqrt(bx * bx + by * by);
+    if (al < ZERO_LENGTH_TOLERANCE || bl < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("un punto coincide con il vertice");
+    }
+    const cos = Math.min(1, Math.max(-1, (ax * bx + ay * by) / (al * bl)));
+    return (Math.acos(cos) * 180) / Math.PI;
+  }
+
+  function angleFromHorizontalDegrees(a, b) {
+    const dx = b.xPixels - a.xPixels, dy = b.yPixels - a.yPixels;
+    if (Math.sqrt(dx * dx + dy * dy) < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("i due punti coincidono");
+    }
+    const raw = Math.abs((Math.atan2(dy, dx) * 180) / Math.PI);
+    return Math.min(raw, 180 - raw);
+  }
+
+  function tiltFromVerticalDegrees(top, bottom) {
+    const dx = bottom.xPixels - top.xPixels, dy = bottom.yPixels - top.yPixels;
+    if (Math.sqrt(dx * dx + dy * dy) < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("i due punti coincidono");
+    }
+    return Math.abs((Math.atan2(dx, dy) * 180) / Math.PI);
+  }
+
+  function angleBetweenLinesDegrees(a1, a2, b1, b2) {
+    const adx = a2.xPixels - a1.xPixels, ady = a2.yPixels - a1.yPixels;
+    const bdx = b2.xPixels - b1.xPixels, bdy = b2.yPixels - b1.yPixels;
+    const al = Math.sqrt(adx * adx + ady * ady), bl = Math.sqrt(bdx * bdx + bdy * bdy);
+    if (al < ZERO_LENGTH_TOLERANCE || bl < ZERO_LENGTH_TOLERANCE) {
+      throw new Error("un segmento ha lunghezza zero");
+    }
+    const cos = Math.min(1, Math.max(-1, (adx * bdx + ady * bdy) / (al * bl)));
+    const raw = (Math.acos(cos) * 180) / Math.PI;
+    return Math.min(raw, 180 - raw);
+  }
+
+  // ── Stato ───────────────────────────────────────────────────────────────
+  // Punti tenuti per fotogramma, non in un unico array globale come nel
+  // tool a singola immagine: ogni voce è { timestampMs, points }. La
+  // ricerca del fotogramma corrente tollera una piccola differenza di
+  // tempo (FRAME_MATCH_TOLERANCE_MS) invece di pretendere una chiave
+  // esatta, perché seek ripetuti sullo stesso tempo richiesto non sempre
+  // riportano <video>.currentTime all'esatto stesso millisecondo.
+  const FRAME_MATCH_TOLERANCE_MS = 20;
+
+  let videoFileName = null;
+  let frames = [];    // [{ timestampMs, points: [{name,xPixels,yPixels}] }]
+  let requests = [];  // { id, type, ...pointNameFields }
+
+  const REQUEST_FIELD_DEFS = {
+    angleAtJoint: [
+      ["firstPointName", "Primo punto"],
+      ["jointPointName", "Vertice (giunto)"],
+      ["secondPointName", "Secondo punto"]
+    ],
+    angleFromHorizontal: [["firstPointName", "Primo punto"], ["secondPointName", "Secondo punto"]],
+    tiltFromVertical: [["topPointName", "Punto in alto"], ["bottomPointName", "Punto in basso"]],
+    angleBetweenLines: [
+      ["firstLineStartPointName", "Linea 1 — inizio"],
+      ["firstLineEndPointName", "Linea 1 — fine"],
+      ["secondLineStartPointName", "Linea 2 — inizio"],
+      ["secondLineEndPointName", "Linea 2 — fine"]
+    ],
+    distance: [["firstPointName", "Primo punto"], ["secondPointName", "Secondo punto"]]
+  };
+
+  const REQUEST_COLORS = ["#facc15", "#38bdf8", "#f472b6", "#4ade80", "#fb923c", "#a78bfa"];
+
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const frameInfo = document.getElementById("frameInfo");
+  const playPauseBtn = document.getElementById("playPauseBtn");
+  const prevFrameBtn = document.getElementById("prevFrameBtn");
+  const nextFrameBtn = document.getElementById("nextFrameBtn");
+  const stepMsInput = document.getElementById("stepMsInput");
+  const clearFramePointsBtn = document.getElementById("clearFramePointsBtn");
+  const copyPreviousBtn = document.getElementById("copyPreviousBtn");
+  const exportBtn = document.getElementById("exportBtn");
+
+  // ── Ricerca/gestione fotogrammi ────────────────────────────────────────
+  function currentTimestampMs() {
+    return video.currentTime * 1000;
+  }
+
+  function findFrameEntry(timestampMs) {
+    let best = null;
+    let bestDelta = Infinity;
+    for (const entry of frames) {
+      const delta = Math.abs(entry.timestampMs - timestampMs);
+      if (delta < bestDelta) {
+        best = entry;
+        bestDelta = delta;
+      }
+    }
+    return best && bestDelta <= FRAME_MATCH_TOLERANCE_MS ? best : null;
+  }
+
+  function currentFrameEntry() {
+    return findFrameEntry(currentTimestampMs());
+  }
+
+  function currentPoints() {
+    const entry = currentFrameEntry();
+    return entry ? entry.points : [];
+  }
+
+  function ensureCurrentFrameEntry() {
+    const existing = currentFrameEntry();
+    if (existing) return existing;
+    const entry = { timestampMs: currentTimestampMs(), points: [] };
+    frames.push(entry);
+    return entry;
+  }
+
+  function findLatestEarlierFrame(timestampMs) {
+    let best = null;
+    for (const entry of frames) {
+      if (entry.timestampMs < timestampMs - FRAME_MATCH_TOLERANCE_MS && entry.points.length > 0) {
+        if (!best || entry.timestampMs > best.timestampMs) best = entry;
+      }
+    }
+    return best;
+  }
+
+  // ── Caricamento video ───────────────────────────────────────────────────
+  document.getElementById("videoInput").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    videoFileName = file.name;
+    frames = [];
+    requests = [];
+    video.src = URL.createObjectURL(file);
+    video.load();
+  });
+
+  video.addEventListener("loadedmetadata", () => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    playPauseBtn.disabled = false;
+    prevFrameBtn.disabled = false;
+    nextFrameBtn.disabled = false;
+    clearFramePointsBtn.disabled = false;
+    copyPreviousBtn.disabled = false;
+    exportBtn.disabled = false;
+    video.currentTime = 0;
+  });
+
+  function drawCurrentFrame() {
+    if (!video.videoWidth) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const points = currentPoints();
+
+    requests.forEach((request, index) => {
+      const color = REQUEST_COLORS[index % REQUEST_COLORS.length];
+      const segments = segmentsForRequest(request);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      segments.forEach(([fromName, toName]) => {
+        const from = points.find((p) => p.name === fromName);
+        const to = points.find((p) => p.name === toName);
+        if (!from || !to) return;
+        ctx.beginPath();
+        ctx.moveTo(from.xPixels, from.yPixels);
+        ctx.lineTo(to.xPixels, to.yPixels);
+        ctx.stroke();
+      });
+    });
+
+    points.forEach((point) => {
+      ctx.beginPath();
+      ctx.arc(point.xPixels, point.yPixels, 5, 0, Math.PI * 2);
+      ctx.fillStyle = "#3b82f6";
+      ctx.fill();
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      ctx.font = "13px system-ui, sans-serif";
+      ctx.fillStyle = "white";
+      ctx.fillText(point.name, point.xPixels + 8, point.yPixels - 8);
+    });
+  }
+
+  function renderCurrentFrame() {
+    drawCurrentFrame();
+    renderPointsTable();
+    renderResults();
+    const entry = currentFrameEntry();
+    frameInfo.textContent =
+      `t = ${currentTimestampMs().toFixed(0)} ms` +
+      (video.duration ? ` / ${(video.duration * 1000).toFixed(0)} ms` : "") +
+      (entry ? ` — ${entry.points.length} punto/i` : " — nessun punto su questo fotogramma");
+  }
+
+  video.addEventListener("seeked", renderCurrentFrame);
+  video.addEventListener("loadeddata", () => {
+    renderCurrentFrame();
+    if (video.requestVideoFrameCallback) {
+      const loop = () => {
+        renderCurrentFrame();
+        video.requestVideoFrameCallback(loop);
+      };
+      video.requestVideoFrameCallback(loop);
+    } else {
+      video.addEventListener("timeupdate", renderCurrentFrame);
+    }
+  });
+
+  // ── Riproduzione / passo fotogramma ────────────────────────────────────
+  playPauseBtn.addEventListener("click", () => {
+    if (video.paused) {
+      video.play();
+      playPauseBtn.textContent = "Pausa";
+    } else {
+      video.pause();
+      playPauseBtn.textContent = "Play";
+    }
+  });
+
+  function stepBy(deltaMs) {
+    video.pause();
+    playPauseBtn.textContent = "Play";
+    const stepMs = Math.max(1, Number(stepMsInput.value) || 33);
+    const targetSeconds = video.currentTime + (deltaMs * stepMs) / 1000;
+    video.currentTime = Math.min(Math.max(targetSeconds, 0), video.duration || targetSeconds);
+  }
+
+  prevFrameBtn.addEventListener("click", () => stepBy(-1));
+  nextFrameBtn.addEventListener("click", () => stepBy(1));
+
+  // ── Posizionamento punti (sul fotogramma corrente) ─────────────────────
+  canvas.addEventListener("click", (event) => {
+    if (!video.videoWidth) {
+      alert("Carica prima un video.");
+      return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const xPixels = Math.round((event.clientX - rect.left) * scaleX);
+    const yPixels = Math.round((event.clientY - rect.top) * scaleY);
+
+    // No window.prompt() here on purpose: it throws in at least one
+    // real embedded-browser environment this tool has actually been
+    // tested in ("prompt() is not supported"), which silently broke
+    // point placement entirely — a click did nothing and there was no
+    // visible error. A point is added immediately with a default,
+    // guaranteed-unique name; the name is an editable text input right
+    // in the points table below (see renderPointsTable()), so renaming
+    // never depends on a native dialog working.
+    const entry = ensureCurrentFrameEntry();
+    const defaultName = uniquePointName(entry.points, `punto_${entry.points.length + 1}`);
+    entry.points.push({ name: defaultName, xPixels, yPixels });
+    renderCurrentFrame();
+  });
+
+  clearFramePointsBtn.addEventListener("click", () => {
+    const entry = currentFrameEntry();
+    if (entry) frames = frames.filter((f) => f !== entry);
+    renderCurrentFrame();
+  });
+
+  copyPreviousBtn.addEventListener("click", () => {
+    // No window.confirm() here on purpose — same reasoning as the
+    // canvas click handler above (window.prompt()'s doc comment):
+    // confirm() was found to always return false in at least one real
+    // browser environment this tool has been tested in, which would
+    // make this "are you sure" check silently and permanently refuse
+    // to overwrite, with no visible explanation. Overwriting existing
+    // points is still never silent: when the current frame already
+    // has points, this button is disabled instead (see
+    // renderCurrentFrame()) rather than prompting for confirmation —
+    // "Elimina punti di questo fotogramma" first is the explicit way
+    // to clear them before copying.
+    const previous = findLatestEarlierFrame(currentTimestampMs());
+    if (!previous) {
+      alert("Nessun fotogramma precedente con punti da copiare.");
+      return;
+    }
+    const existing = currentFrameEntry();
+    if (existing && existing.points.length > 0) {
+      alert(
+        "Questo fotogramma ha già dei punti. Usa \"Elimina punti di questo fotogramma\" prima di copiare, per non sovrascriverli per sbaglio."
+      );
+      return;
+    }
+    frames.push({
+      timestampMs: currentTimestampMs(),
+      points: previous.points.map((p) => ({ ...p }))
+    });
+    renderCurrentFrame();
+  });
+
+  document.getElementById("clearRequestsBtn").addEventListener("click", () => {
+    requests = [];
+    renderCurrentFrame();
+  });
+
+  function removePoint(name) {
+    const entry = currentFrameEntry();
+    if (!entry) return;
+    entry.points = entry.points.filter((p) => p.name !== name);
+    renderCurrentFrame();
+  }
+
+  // Appends "_2", "_3", ... until the name doesn't collide with an
+  // existing point on the same frame — point names must be unique
+  // per frame since requests reference them by name.
+  function uniquePointName(existingPoints, desiredName) {
+    const taken = new Set(existingPoints.map((p) => p.name));
+    if (!taken.has(desiredName)) return desiredName;
+    let suffix = 2;
+    while (taken.has(`${desiredName}_${suffix}`)) suffix += 1;
+    return `${desiredName}_${suffix}`;
+  }
+
+  function renamePoint(oldName, newNameRaw) {
+    const entry = currentFrameEntry();
+    if (!entry) return;
+    const point = entry.points.find((p) => p.name === oldName);
+    if (!point) return;
+    const trimmed = newNameRaw.trim();
+    if (!trimmed || trimmed === oldName) {
+      renderCurrentFrame(); // revert the input's display if left blank/unchanged
+      return;
+    }
+    point.name = uniquePointName(
+      entry.points.filter((p) => p !== point),
+      trimmed
+    );
+    renderCurrentFrame();
+  }
+
+  function removeRequest(id) {
+    requests = requests.filter((r) => r.id !== id);
+    renderCurrentFrame();
+  }
+
+  function segmentsForRequest(request) {
+    if (request.type === "angleAtJoint") {
+      return [
+        [request.firstPointName, request.jointPointName],
+        [request.jointPointName, request.secondPointName]
+      ];
+    }
+    if (request.type === "angleFromHorizontal" || request.type === "distance") {
+      return [[request.firstPointName, request.secondPointName]];
+    }
+    if (request.type === "tiltFromVertical") {
+      return [[request.topPointName, request.bottomPointName]];
+    }
+    if (request.type === "angleBetweenLines") {
+      return [
+        [request.firstLineStartPointName, request.firstLineEndPointName],
+        [request.secondLineStartPointName, request.secondLineEndPointName]
+      ];
+    }
+    return [];
+  }
+
+  // ── Tabella punti ───────────────────────────────────────────────────────
+  function renderPointsTable() {
+    const points = currentPoints();
+    const tbody = document.querySelector("#pointsTable tbody");
+    tbody.innerHTML = "";
+    points.forEach((point) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td></td><td>${point.xPixels}</td><td>${point.yPixels}</td>` +
+        `<td><span class="delete-link" data-name="${escapeHtml(point.name)}">elimina</span></td>`;
+      // A real text input, not window.prompt() — see the canvas click
+      // handler's doc comment above for why: prompt() isn't reliably
+      // supported everywhere this tool has actually been tested.
+      const nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.value = point.name;
+      nameInput.style.width = "110px";
+      nameInput.addEventListener("change", () => renamePoint(point.name, nameInput.value));
+      tr.firstElementChild.appendChild(nameInput);
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll(".delete-link").forEach((el) => {
+      el.addEventListener("click", () => removePoint(el.dataset.name));
+    });
+    // Copying would otherwise silently overwrite this frame's own
+    // points — see copyPreviousBtn's own handler comment for why this
+    // is a disabled button rather than a window.confirm() prompt.
+    copyPreviousBtn.disabled = points.length > 0;
+    renderRequestFields(); // le opzioni dei menu dipendono dai punti del fotogramma corrente
+  }
+
+  // ── Form nuova richiesta ────────────────────────────────────────────────
+  const requestTypeSelect = document.getElementById("requestType");
+  requestTypeSelect.addEventListener("change", renderRequestFields);
+
+  function renderRequestFields() {
+    const type = requestTypeSelect.value;
+    const container = document.getElementById("requestFields");
+    container.innerHTML = "";
+    const fieldDefs = REQUEST_FIELD_DEFS[type];
+    const points = currentPoints();
+
+    fieldDefs.forEach(([fieldName, label]) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const select = document.createElement("select");
+      select.dataset.field = fieldName;
+      select.innerHTML = `<option value="">— ${escapeHtml(label)} —</option>` +
+        points.map((p) => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join("");
+      row.appendChild(select);
+      container.appendChild(row);
+    });
+  }
+  renderRequestFields();
+
+  document.getElementById("addRequestBtn").addEventListener("click", () => {
+    const type = requestTypeSelect.value;
+    const fieldDefs = REQUEST_FIELD_DEFS[type];
+    const container = document.getElementById("requestFields");
+    const selects = container.querySelectorAll("select");
+
+    const request = { type };
+    let missing = false;
+    selects.forEach((select) => {
+      if (!select.value) missing = true;
+      request[select.dataset.field] = select.value;
+    });
+    if (missing) {
+      alert("Seleziona un punto per ogni campo della richiesta.");
+      return;
+    }
+
+    const idInput = document.getElementById("requestId");
+    request.id = idInput.value.trim() || `richiesta_${requests.length + 1}`;
+    idInput.value = "";
+
+    requests.push(request);
+    renderCurrentFrame();
+  });
+
+  // ── Calcolo (anteprima) e tabella risultati ────────────────────────────
+  function computeOne(request, points) {
+    const findPoint = (name) => points.find((p) => p.name === name);
+    try {
+      if (request.type === "angleAtJoint") {
+        const a = findPoint(request.firstPointName), joint = findPoint(request.jointPointName), b = findPoint(request.secondPointName);
+        if (!a || !joint || !b) throw new Error("punto non trovato su questo fotogramma");
+        return { value: angleAtJointDegrees(a, joint, b), unit: "°" };
+      }
+      if (request.type === "angleFromHorizontal") {
+        const a = findPoint(request.firstPointName), b = findPoint(request.secondPointName);
+        if (!a || !b) throw new Error("punto non trovato su questo fotogramma");
+        return { value: angleFromHorizontalDegrees(a, b), unit: "°" };
+      }
+      if (request.type === "tiltFromVertical") {
+        const top = findPoint(request.topPointName), bottom = findPoint(request.bottomPointName);
+        if (!top || !bottom) throw new Error("punto non trovato su questo fotogramma");
+        return { value: tiltFromVerticalDegrees(top, bottom), unit: "°" };
+      }
+      if (request.type === "angleBetweenLines") {
+        const a1 = findPoint(request.firstLineStartPointName), a2 = findPoint(request.firstLineEndPointName);
+        const b1 = findPoint(request.secondLineStartPointName), b2 = findPoint(request.secondLineEndPointName);
+        if (!a1 || !a2 || !b1 || !b2) throw new Error("punto non trovato su questo fotogramma");
+        return { value: angleBetweenLinesDegrees(a1, a2, b1, b2), unit: "°" };
+      }
+      if (request.type === "distance") {
+        const a = findPoint(request.firstPointName), b = findPoint(request.secondPointName);
+        if (!a || !b) throw new Error("punto non trovato su questo fotogramma");
+        return { value: distancePixels(a, b), unit: "px" };
+      }
+      throw new Error("tipo di richiesta sconosciuto");
+    } catch (error) {
+      return { value: null, unit: null, error: error.message };
+    }
+  }
+
+  function renderResults() {
+    const points = currentPoints();
+    const tbody = document.querySelector("#resultsTable tbody");
+    tbody.innerHTML = "";
+    requests.forEach((request) => {
+      const result = computeOne(request, points);
+      const tr = document.createElement("tr");
+      const valueCell = result.error
+        ? `<span class="error-text">${escapeHtml(result.error)}</span>`
+        : `<span class="value-text">${result.value.toFixed(1)}${result.unit}</span>`;
+      tr.innerHTML = `<td>${escapeHtml(request.id)}</td><td>${valueCell}</td>` +
+        `<td><span class="delete-link" data-id="${escapeHtml(request.id)}">elimina</span></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll(".delete-link").forEach((el) => {
+      el.addEventListener("click", () => removeRequest(el.dataset.id));
+    });
+  }
+
+  // ── Esporta / importa JSON ──────────────────────────────────────────────
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    const framesByTimestampMs = {};
+    frames.forEach((entry) => {
+      framesByTimestampMs[String(Math.round(entry.timestampMs))] = entry.points;
+    });
+    const data = {
+      requests,
+      framesByTimestampMs,
+      videoFileName,
+      videoDurationSeconds: video.duration || null,
+      videoWidthPixels: video.videoWidth || null,
+      videoHeightPixels: video.videoHeight || null
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `overhead-alignment-video-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  });
+
+  document.getElementById("importInput").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        requests = Array.isArray(data.requests) ? data.requests : [];
+        const framesByTimestampMs = data.framesByTimestampMs && typeof data.framesByTimestampMs === "object"
+          ? data.framesByTimestampMs
+          : {};
+        frames = Object.entries(framesByTimestampMs).map(([timestampMsText, points]) => ({
+          timestampMs: Number(timestampMsText),
+          points: Array.isArray(points) ? points : []
+        }));
+        renderCurrentFrame();
+      } catch (error) {
+        alert("File JSON non valido: " + error.message);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  });
+
+  // ── Utilità ─────────────────────────────────────────────────────────────
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+</script>
+</body>
+</html>

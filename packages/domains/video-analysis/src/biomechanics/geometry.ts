@@ -191,17 +191,22 @@ export function tiltFromVerticalDegrees(
  * direction, so reversing either segment (or swapping which is
  * "first"/"second") must not change the result.
  *
- * Motivating use case: a real coaching check from Filippo Clini's
- * "Livello Avanzato per l'istruttore" manual, read from an overhead
- * camera angle — whether the draw forearm stays parallel to the
- * arrow's line, drawn in the manual as a separate line (forearm)
- * compared against the bow-hand-to-anchor-point line (arrow), which
- * do not share an endpoint. That manual's check is not reproduced
- * elsewhere in this package (see manual-annotation/ and README.md for
- * why — it needs a camera directly above the archer, a viewing angle
- * BlazePose's real-world detection accuracy has not been checked
- * against), so this primitive is meant to be fed points a human
- * places by hand on a still photo, not BlazePose keypoints.
+ * Originally added for a coaching check from Filippo Clini's "Livello
+ * Avanzato per l'istruttore" manual, read from an overhead camera
+ * angle — whether the draw forearm stays parallel to the arrow's line,
+ * drawn in the manual as a separate line (forearm) compared against
+ * the bow-hand-to-anchor-point line (arrow), which do not share an
+ * endpoint. That manual's check is not reproduced elsewhere in this
+ * package (see manual-annotation/ and README.md for why — it needs a
+ * camera directly above the archer, a viewing angle BlazePose's
+ * real-world detection accuracy has not been checked against), so
+ * this primitive was originally meant to be fed points a human places
+ * by hand on a still photo, not BlazePose keypoints. It is now also
+ * used directly against real BlazePose keypoints: posture-analysis's
+ * footStanceAngle metric compares the feet line (left_heel↔right_heel)
+ * against the hip line (left_hip↔right_hip) — those two lines don't
+ * share a vertex either, and this is the same well-tested primitive,
+ * not a separate implementation for the "real keypoints" case.
  *
  * Throws if either segment has (effectively) zero length, same
  * reasoning as the other angle functions in this file.

@@ -147,6 +147,22 @@ Open questions this draft does **not** resolve:
   cost than a 3-second single-shot clip. May need to scope v1 to short, pre-trimmed clips
   rather than arbitrary raw footage.
 
+> **Real precedent (not `apps/web` — a proof of concept in an existing standalone tool):**
+> `tools/posture-video-player.html` now runs this exact approach — client-side BlazePose,
+> a CDN for TensorFlow.js, `tfhub.dev` for the model, the uploaded file itself never
+> leaving the machine — against a video or photo the user uploads directly into that page,
+> no `apps/web` required to prove the pattern works. See `README.md`'s "In-browser
+> automatic processing" entry under `posture-analysis/` for what was actually built and
+> verified (real browser-tab testing, not just read-and-reasoned-about). It also gives
+> this document's own open "performance on longer videos" question above a concrete,
+> working answer for now: a confirmation prompt above 300 sampled frames, plus a
+> configurable frames-per-second sampling rate and a cancel button — not a hard scope
+> limit to short clips, but an explicit, user-visible tradeoff instead of a silent hang.
+> This does not resolve the open question for `apps/web` itself (still undecided — a
+> different codebase, different UI, no code shared yet beyond the same general
+> technique), but it is real evidence the client-side approach this section committed to
+> is viable, not just theoretically sound.
+
 ---
 
 # 5. Code Reuse from `@apl/video-analysis`

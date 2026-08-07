@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="utf-8" />
-<title>Analisi posturale continua — video</title>
+<title>Analisi posturale continua — video/immagine</title>
 <style>
   body { margin: 0; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; padding: 20px; }
   h1 { font-size: 18px; margin: 0 0 4px; }
@@ -30,7 +30,8 @@
      amounts would generally differ whenever the box's aspect-ratio
      doesn't exactly match, and the overlay would drift out of alignment
      with the video underneath it. */
-  .video-wrap video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; object-fit: fill; }
+  .video-wrap video, .video-wrap img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; object-fit: fill; }
+  .video-wrap img { display: none; } /* shown only in image mode, see processImageFile() */
   .video-wrap #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   .video-wrap #overlay svg { display: block; width: 100%; height: 100%; }
   /* pointer-events:all on just the dots re-enables interaction with
@@ -41,14 +42,16 @@
   .video-wrap #overlay circle { pointer-events: all; cursor: grab; }
   .video-wrap #overlay circle:active { cursor: grabbing; }
   .panel { min-width: 300px; max-width: 420px; }
-  #mismatchWarning { display: none; background: #7f1d1d; color: #fecaca; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 8px 0; max-width: 900px; line-height: 1.5; }
+  #processingStatus { display: none; background: #1e293b; color: #e2e8f0; padding: 8px 12px; border-radius: 4px; font-size: 13px; margin: 8px 0; max-width: 900px; line-height: 1.5; }
+  #processingStatus.error { background: #7f1d1d; color: #fecaca; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 12px; }
   th, td { text-align: left; padding: 3px 8px 3px 0; border-bottom: 1px solid #1e293b; }
   th { color: #64748b; font-size: 11px; text-transform: uppercase; }
-  button, select, input[type="file"] { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; font-size: 13px; }
+  button, select, input[type="file"], input[type="number"] { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 4px; padding: 5px 8px; font-size: 13px; }
   button { cursor: pointer; }
   button:hover:not(:disabled) { background: #334155; }
   button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #extractFpsInput { width: 56px; }
   #frameInfo { font-size: 13px; color: #94a3b8; margin: 8px 0 16px; font-family: monospace; }
   #thresholdsTable input[type="number"] { width: 48px; background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 3px; padding: 2px 4px; font-size: 12px; }
   #thresholdsTable th, #thresholdsTable td { padding: 4px 4px 4px 0; }
@@ -58,32 +61,50 @@
 </head>
 <body>
 
-<h1>Analisi posturale continua — video</h1>
+<h1>Analisi posturale continua — video/immagine</h1>
 <p class="note">
-  Riproduce il video originale con sopra, in tempo reale, lo scheletro e le
-  sei metriche posturali già calcolate da <code>scripts/build-posture-timeline.cjs</code>
-  per OGNI fotogramma — non un singolo istante scelto a mano, l'intera azione.
-  Nessun file viene caricato da nessuna parte: video e JSON restano nel
-  browser, in memoria, esattamente come <code>tools/overhead-alignment.html</code>.
-  Usa i pulsanti "Frame" per avanzare un fotogramma alla volta e trovare a
-  occhio un momento preciso (es. l'ancoraggio), con lo scheletro già visibile
-  invece di indovinare un timestamp alla cieca. Ogni punto (pallino blu) è
-  spostabile con il mouse: se BlazePose ha rilevato una posizione sbagliata,
-  trascina il punto dove dovrebbe essere davvero — diventa arancione per
-  segnalare che è stato corretto a mano, e le metriche a destra si
-  ricalcolano subito con la posizione corretta. "Ripristina fotogramma"
-  annulla tutte le correzioni fatte sul fotogramma corrente, tornando ai
-  valori rilevati automaticamente. Le soglie "ideale"/"warning" di ogni
-  metrica (sezione "Soglie" a destra) sono modificabili: i numeri di
-  default vengono da un'app di terze parti e non corrispondono
-  necessariamente a questo arciere. "Cattura come ideale" prende i
-  valori del fotogramma corrente e li usa come nuovo centro delle
-  soglie — utile su un fotogramma che consideri tecnicamente corretto.
+  Carica un video o una singola foto: la stima della posa (BlazePose via
+  TensorFlow.js) viene eseguita interamente in questo browser, un fotogramma
+  alla volta — il file caricato non lascia mai questo computer, solo il
+  modello BlazePose e le librerie TensorFlow.js vengono scaricati da
+  internet al primo utilizzo. Imposta il "Lato di rilascio" PRIMA di
+  caricare: serve a capire quale braccio è quello dell'arco. Per un video, i
+  fotogrammi vengono campionati al ritmo indicato in "Fotogrammi/sec" — un
+  valore più basso elabora più in fretta ma con meno dettaglio;
+  l'elaborazione di un video lungo può richiedere diversi minuti ed è
+  annullabile in qualsiasi momento con "Annulla". Per una foto viene
+  analizzato un solo fotogramma, quasi istantaneo. A elaborazione completata,
+  usa i pulsanti "Frame" (solo per un video) per avanzare un fotogramma alla
+  volta e trovare a occhio un momento preciso (es. l'ancoraggio), con lo
+  scheletro già visibile invece di indovinare un timestamp alla cieca. Ogni
+  punto (pallino blu) è spostabile con il mouse: se BlazePose ha rilevato una
+  posizione sbagliata, trascina il punto dove dovrebbe essere davvero —
+  diventa arancione per segnalare che è stato corretto a mano, e le metriche
+  a destra si ricalcolano subito con la posizione corretta. "Ripristina
+  fotogramma" annulla tutte le correzioni fatte sul fotogramma corrente,
+  tornando ai valori rilevati automaticamente. Le soglie "ideale"/"warning"
+  di ogni metrica (sezione "Soglie" a destra) sono modificabili: i numeri di
+  default (per sei delle sette metriche) vengono da un'app di terze parti e
+  non corrispondono necessariamente a questo arciere. "Apertura piedi
+  rispetto al bacino" (angolo tra la linea talloni e la linea bacino) ha
+  invece un range ideale impostato su richiesta diretta (-2,5° / 4,0°, con
+  un range di warning di ±12° attorno al centro), non copiato da nessuna
+  app di terze parti. "Cattura come ideale" prende i valori del fotogramma
+  corrente e li usa come nuovo centro delle soglie — utile su un
+  fotogramma che consideri tecnicamente corretto, per qualsiasi metrica.
 </p>
 
 <div class="toolbar">
-  <label>Video: <input type="file" id="videoInput" accept="video/*" /></label>
-  <label>Dati (JSON): <input type="file" id="jsonInput" accept="application/json" /></label>
+  <label>Video o immagine: <input type="file" id="mediaInput" accept="video/*,image/*" /></label>
+  <label>Lato di rilascio:
+    <select id="drawSideSelect">
+      <option value="right">Destro</option>
+      <option value="left">Sinistro</option>
+    </select>
+  </label>
+  <label>Fotogrammi/sec (video): <input type="number" id="extractFpsInput" value="5" min="0.5" max="30" step="0.5" /></label>
+  <label><input type="checkbox" id="showLabelsCheckbox" /> Mostra nomi punti</label>
+  <button id="cancelProcessingBtn" style="display: none;">Annulla elaborazione</button>
   <button id="playPauseBtn" disabled>Play</button>
   <button id="prevFrameBtn" disabled>◀ Frame</button>
   <button id="nextFrameBtn" disabled>Frame ▶</button>
@@ -96,15 +117,16 @@
   </select>
 </div>
 
-<div id="mismatchWarning"></div>
+<div id="processingStatus"></div>
 
 <div class="layout">
   <div class="video-panel">
     <div class="video-wrap" id="videoWrap">
       <video id="video" muted playsinline></video>
+      <img id="stillImage" alt="Immagine caricata" />
       <div id="overlay"></div>
     </div>
-    <div id="frameInfo">Carica un video e un file JSON per iniziare.</div>
+    <div id="frameInfo">Carica un video o un'immagine per iniziare.</div>
   </div>
 
   <div class="panel">
@@ -114,12 +136,27 @@
       <tbody></tbody>
     </table>
 
+    <h2>Valutazione Complessiva</h2>
+    <div id="scoreGaugeWrap" style="display: flex; align-items: center; gap: 16px; margin-bottom: 8px;"></div>
+    <p class="note" style="max-width: 400px;">
+      Media delle metriche già classificate ("ok"/"warning"/"outOfRange")
+      nel fotogramma corrente: 100% quando sono tutte "ok", scende
+      progressivamente man mano che i valori si allontanano dal range
+      ideale, verso 0% oltre la soglia di warning. Le metriche senza un
+      keypoint rilevato in questo fotogramma o senza soglie configurate
+      sono escluse dalla media invece di contare come "sbagliate" — "n/d"
+      quando nessuna metrica è calcolabile. Indicatore visivo
+      approssimativo per orientarsi rapidamente, non una metrica validata
+      scientificamente.
+    </p>
+
     <h2>Soglie (taratura per questo arciere)</h2>
     <p class="note" style="max-width: 400px;">
-      Ogni corpo è diverso: i range di default (da "Archery Posture
-      Tracker") non sono validati per nessun arciere specifico. Modifica
-      i numeri a mano, oppure vai su un fotogramma tecnicamente corretto
-      e usa "Cattura come ideale".
+      Ogni corpo è diverso: i range di default (sei da "Archery Posture
+      Tracker", uno — "Apertura piedi rispetto al bacino" — impostato su
+      richiesta diretta) non sono validati per nessun arciere specifico.
+      Modifica i numeri a mano, oppure vai su un fotogramma tecnicamente
+      corretto e usa "Cattura come ideale".
     </p>
     <div class="thresholds-toolbar">
       <button id="captureIdealBtn" disabled>Cattura come ideale</button>
@@ -175,7 +212,9 @@
   // Kept in sync by hand with scripts/lib/render-skeleton-overlay-svg.cjs
   // (see its own comment on this same array — the last six entries,
   // heel/foot_index, are a real extension added after Tommaso himself
-  // asked to see foot placement, not part of the original ghiggo port).
+  // asked to see foot placement, not part of the original ghiggo port;
+  // left_heel/right_heel are also now used directly by the
+  // footStanceAngle metric below, not just for drawing).
   const SKELETON_CONNECTIONS = [
     ["left_shoulder", "right_shoulder"],
     ["left_shoulder", "left_elbow"],
@@ -223,31 +262,48 @@
     return (postureResults || []).find((result) => result.id === id) || null;
   }
 
-  function angleLabelMarkup(elbowKeypoint, metricResult, label) {
+  // All the fixed pixel sizes below (line thickness, dot radius, font
+  // sizes) are defined in the SVG's own viewBox space, which equals
+  // the source media's native pixel dimensions (widthPixels/
+  // heightPixels) — NOT the on-screen CSS box it's stretched into.
+  // For a typical video frame (~1080px wide) sized down into
+  // `.video-panel`'s CSS box, that made the overlay readable. For a
+  // much higher-resolution photo (e.g. 3213px wide) squeezed into that
+  // exact same CSS box, everything shrinks much further — direct
+  // report: lines "molto sottili", dots "diametro ridotto", labels
+  // "molto piccole" on a real uploaded photo. Fixed by scaling every
+  // one of these sizes by `visualScale` (widthPixels relative to this
+  // reference), computed once in renderSkeletonOverlaySvg() and
+  // threaded into angleLabelMarkup()/zoneBoxMarkup() — floored at 1 so
+  // a lower-resolution source never gets thinner than today's already-
+  // working video appearance, only ever scales up for something larger.
+  const VISUAL_SCALE_REFERENCE_WIDTH_PIXELS = 1080;
+
+  function angleLabelMarkup(elbowKeypoint, metricResult, label, scale) {
     const color = statusColor(metricResult.status);
-    const x = elbowKeypoint.xPixels + 10;
+    const x = elbowKeypoint.xPixels + 10 * scale;
     const y = elbowKeypoint.yPixels;
     return (
-      `<text x="${x.toFixed(1)}" y="${(y - 6).toFixed(1)}" font-size="18" font-weight="bold" ` +
+      `<text x="${x.toFixed(1)}" y="${(y - 6 * scale).toFixed(1)}" font-size="${(18 * scale).toFixed(1)}" font-weight="bold" ` +
       `fill="${color}" font-family="system-ui, sans-serif">${metricResult.valueDegrees.toFixed(1)}°</text>\n  ` +
-      `<text x="${x.toFixed(1)}" y="${(y + 12).toFixed(1)}" font-size="13" fill="rgba(255,255,255,0.9)" ` +
+      `<text x="${x.toFixed(1)}" y="${(y + 12 * scale).toFixed(1)}" font-size="${(13 * scale).toFixed(1)}" fill="rgba(255,255,255,0.9)" ` +
       `font-family="system-ui, sans-serif">${escapeXmlText(label)}</text>`
     );
   }
 
-  function zoneBoxMarkup(firstKeypoint, secondKeypoint, label, status) {
+  function zoneBoxMarkup(firstKeypoint, secondKeypoint, label, status, scale) {
     const centerX = (firstKeypoint.xPixels + secondKeypoint.xPixels) / 2;
     const centerY = (firstKeypoint.yPixels + secondKeypoint.yPixels) / 2;
-    const boxWidth = Math.abs(secondKeypoint.xPixels - firstKeypoint.xPixels) + 40;
-    const boxHeight = 28;
+    const boxWidth = Math.abs(secondKeypoint.xPixels - firstKeypoint.xPixels) + 40 * scale;
+    const boxHeight = 28 * scale;
     const color = statusColor(status);
 
     return (
       `<rect x="${(centerX - boxWidth / 2).toFixed(1)}" y="${(centerY - boxHeight / 2).toFixed(1)}" ` +
       `width="${boxWidth.toFixed(1)}" height="${boxHeight.toFixed(1)}" fill="none" stroke="${color}" ` +
-      `stroke-width="1.5" stroke-dasharray="4,3" />\n  ` +
-      `<text x="${(centerX - boxWidth / 2 + 4).toFixed(1)}" y="${(centerY - boxHeight / 2 - 5).toFixed(1)}" ` +
-      `font-size="14" font-weight="bold" fill="${color}" font-family="system-ui, sans-serif">${escapeXmlText(label)}</text>`
+      `stroke-width="${(1.5 * scale).toFixed(2)}" stroke-dasharray="${(4 * scale).toFixed(1)},${(3 * scale).toFixed(1)}" />\n  ` +
+      `<text x="${(centerX - boxWidth / 2 + 4 * scale).toFixed(1)}" y="${(centerY - boxHeight / 2 - 5 * scale).toFixed(1)}" ` +
+      `font-size="${(14 * scale).toFixed(1)}" font-weight="bold" fill="${color}" font-family="system-ui, sans-serif">${escapeXmlText(label)}</text>`
     );
   }
 
@@ -257,11 +313,14 @@
     drawSide,
     widthPixels,
     heightPixels,
-    confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD
+    confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD,
+    showLabels = false
   }) {
     if (!keypoints || keypoints.length === 0) {
       return null;
     }
+
+    const visualScale = Math.max(1, widthPixels / VISUAL_SCALE_REFERENCE_WIDTH_PIXELS);
 
     const keypointsByName = new Map(keypoints.map((keypoint) => [keypoint.name, keypoint]));
     const isConfident = (name) => {
@@ -276,7 +335,7 @@
         return (
           `<line x1="${pointA.xPixels.toFixed(1)}" y1="${pointA.yPixels.toFixed(1)}" ` +
           `x2="${pointB.xPixels.toFixed(1)}" y2="${pointB.yPixels.toFixed(1)}" ` +
-          `stroke="rgba(148,163,184,0.85)" stroke-width="2" />`
+          `stroke="rgba(148,163,184,0.85)" stroke-width="${(2 * visualScale).toFixed(2)}" />`
         );
       })
       .join("\n  ");
@@ -286,6 +345,8 @@
     // applyManualCorrection() once a point has been dragged) switches
     // its fill to amber so a manually-placed point is visually
     // distinguishable from an automatically-detected one at a glance.
+    const dotRadius = 6 * visualScale;
+    const dotStrokeWidth = 1.5 * visualScale;
     const dotMarkup = keypoints
       .filter(
         (keypoint) => keypoint.confidenceScore >= confidenceThreshold && CONNECTED_KEYPOINT_NAMES.has(keypoint.name)
@@ -293,10 +354,34 @@
       .map(
         (keypoint) =>
           `<circle data-name="${escapeXmlText(keypoint.name)}" cx="${keypoint.xPixels.toFixed(1)}" ` +
-          `cy="${keypoint.yPixels.toFixed(1)}" r="6" ` +
-          `fill="${keypoint.manuallyCorrected ? "#f59e0b" : "#3b82f6"}" stroke="white" stroke-width="1.5" />`
+          `cy="${keypoint.yPixels.toFixed(1)}" r="${dotRadius.toFixed(1)}" ` +
+          `fill="${keypoint.manuallyCorrected ? "#f59e0b" : "#3b82f6"}" stroke="white" stroke-width="${dotStrokeWidth.toFixed(2)}" />`
       )
       .join("\n  ");
+
+    // Off by default (showLabels) — the raw BlazePose keypoint name
+    // (e.g. "left_ear"), not a translated/friendly label, since this
+    // exists specifically to let a coach tell which dot is which
+    // against the exact names analyzePosture()/the metrics table use.
+    // paint-order="stroke fill" with a thick black stroke behind a
+    // white fill keeps each label readable over any photo background,
+    // without needing a separate background rect per label.
+    const labelFontSize = 11 * visualScale;
+    const labelOffset = 9 * visualScale;
+    const labelStrokeWidth = 3 * visualScale;
+    const labelMarkup = showLabels
+      ? keypoints
+          .filter(
+            (keypoint) => keypoint.confidenceScore >= confidenceThreshold && CONNECTED_KEYPOINT_NAMES.has(keypoint.name)
+          )
+          .map(
+            (keypoint) =>
+              `<text x="${(keypoint.xPixels + labelOffset).toFixed(1)}" y="${(keypoint.yPixels - labelOffset).toFixed(1)}" ` +
+              `font-size="${labelFontSize.toFixed(1)}" font-family="system-ui, sans-serif" fill="white" stroke="black" ` +
+              `stroke-width="${labelStrokeWidth.toFixed(2)}" paint-order="stroke fill">${escapeXmlText(keypoint.name)}</text>`
+          )
+          .join("\n  ")
+      : "";
 
     const zoneMarkupParts = [];
     const shoulderResult = findMetric(postureResults, "shoulderLevel");
@@ -306,14 +391,15 @@
           keypointsByName.get("left_shoulder"),
           keypointsByName.get("right_shoulder"),
           "Spalle",
-          shoulderResult.status
+          shoulderResult.status,
+          visualScale
         )
       );
     }
     const hipResult = findMetric(postureResults, "hipLevel");
     if (hipResult && hipResult.status && isConfident("left_hip") && isConfident("right_hip")) {
       zoneMarkupParts.push(
-        zoneBoxMarkup(keypointsByName.get("left_hip"), keypointsByName.get("right_hip"), "Bacino", hipResult.status)
+        zoneBoxMarkup(keypointsByName.get("left_hip"), keypointsByName.get("right_hip"), "Bacino", hipResult.status, visualScale)
       );
     }
 
@@ -322,14 +408,28 @@
     const bowResult = findMetric(postureResults, "bowArmElbow");
     if (bowResult && bowResult.valueDegrees !== null && isConfident(`${bowSide}_elbow`)) {
       angleMarkupParts.push(
-        angleLabelMarkup(keypointsByName.get(`${bowSide}_elbow`), bowResult, "Braccio arco")
+        angleLabelMarkup(keypointsByName.get(`${bowSide}_elbow`), bowResult, "Braccio arco", visualScale)
       );
     }
     const drawResult = findMetric(postureResults, "drawArmElbow");
     if (drawResult && drawResult.valueDegrees !== null && isConfident(`${drawSide}_elbow`)) {
       angleMarkupParts.push(
-        angleLabelMarkup(keypointsByName.get(`${drawSide}_elbow`), drawResult, "Braccio corda")
+        angleLabelMarkup(keypointsByName.get(`${drawSide}_elbow`), drawResult, "Braccio corda", visualScale)
       );
+    }
+    // footStanceAngle now ships with a default range (see
+    // DEFAULT_POSTURE_METRICS below), but a coach can still clear it
+    // in the "Soglie" panel, leaving status null — angleLabelMarkup()
+    // already renders a null status in neutral gray (statusColor()'s
+    // fallback either way), so the raw angle stays visible rather than
+    // hidden. Anchored to the heel-line midpoint since this metric has
+    // no single joint keypoint to anchor to.
+    const footStanceResult = findMetric(postureResults, "footStanceAngle");
+    if (footStanceResult && footStanceResult.valueDegrees !== null && isConfident("left_heel") && isConfident("right_heel")) {
+      const leftHeel = keypointsByName.get("left_heel");
+      const rightHeel = keypointsByName.get("right_heel");
+      const midHeel = { xPixels: (leftHeel.xPixels + rightHeel.xPixels) / 2, yPixels: (leftHeel.yPixels + rightHeel.yPixels) / 2 };
+      angleMarkupParts.push(angleLabelMarkup(midHeel, footStanceResult, "Apertura piedi", visualScale));
     }
 
     // preserveAspectRatio="none" is not decorative: without it, SVG's own
@@ -344,6 +444,7 @@
     return `<svg width="${widthPixels}" height="${heightPixels}" viewBox="0 0 ${widthPixels} ${heightPixels}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
   ${lineMarkup}
   ${dotMarkup}
+  ${labelMarkup}
   ${zoneMarkupParts.join("\n  ")}
   ${angleMarkupParts.join("\n  ")}
 </svg>
@@ -353,9 +454,9 @@
   // ---- Manual point correction: duplicated analyzePosture() ----
   //
   // Duplicated from src/posture-analysis/analyze.ts + metrics.ts and
-  // the three geometry primitives from src/biomechanics/geometry.ts it
+  // the four geometry primitives from src/biomechanics/geometry.ts it
   // calls (angleAtJointDegrees, angleFromHorizontalDegrees,
-  // tiltFromVerticalDegrees) — same tradeoff already made for
+  // tiltFromVerticalDegrees, angleBetweenLinesDegrees) — same tradeoff already made for
   // renderSkeletonOverlaySvg above and for tools/overhead-alignment.html's
   // math helpers: this static page has no build step, so it cannot
   // import TypeScript. Needed here (and not before) because dragging a
@@ -399,23 +500,75 @@
     return Math.abs((Math.atan2(deltaX, deltaY) * 180) / Math.PI);
   }
 
+  // Used by footStanceAngle below: the feet line (heels) and the hip
+  // line don't share a vertex, unlike the elbow/shoulder/hip pairs
+  // above that go through angleAtJointDegrees/angleFromHorizontalDegrees.
+  function angleBetweenLinesDegrees(firstLineStart, firstLineEnd, secondLineStart, secondLineEnd) {
+    const firstDeltaX = firstLineEnd.xPixels - firstLineStart.xPixels;
+    const firstDeltaY = firstLineEnd.yPixels - firstLineStart.yPixels;
+    const secondDeltaX = secondLineEnd.xPixels - secondLineStart.xPixels;
+    const secondDeltaY = secondLineEnd.yPixels - secondLineStart.yPixels;
+    const firstLength = Math.sqrt(firstDeltaX * firstDeltaX + firstDeltaY * firstDeltaY);
+    const secondLength = Math.sqrt(secondDeltaX * secondDeltaX + secondDeltaY * secondDeltaY);
+    if (firstLength < 1e-9 || secondLength < 1e-9) {
+      throw new Error("Cannot compute an angle between lines: one of the segments has zero length");
+    }
+    const dotProduct = firstDeltaX * secondDeltaX + firstDeltaY * secondDeltaY;
+    const cosineOfAngle = dotProduct / (firstLength * secondLength);
+    const clampedCosine = Math.min(1, Math.max(-1, cosineOfAngle));
+    const rawAngleDegrees = (Math.acos(clampedCosine) * 180) / Math.PI;
+    return Math.min(rawAngleDegrees, 180 - rawAngleDegrees);
+  }
+
   const MINIMUM_KEYPOINT_CONFIDENCE_SCORE = 0.5;
 
+  // footStanceAngle's idealRangeDegrees ([-2.5, 4.0]) is a direct
+  // request, not ported from ghiggo's tool like the six ranges above —
+  // this package does not invent numeric thresholds without a real
+  // source (see CLAUDE.md), so this one is recorded as coming directly
+  // from the user, not derived or guessed. warnRangeDegrees was not
+  // separately specified — set to ±12° around the ideal range's own
+  // center (0.75°, giving [-11.25, 12.75]), the same tolerance
+  // "Cattura come ideale" below already uses around a single captured
+  // value, applied here to a given range's midpoint instead.
+  //
+  // drawArmElbow's idealRangeDegrees was overridden from ghiggo's
+  // original [25, 40] to [1, 15] on direct request; its warnRangeDegrees
+  // similarly was not separately specified, so it follows the same
+  // ±12°-around-the-new-center convention (center 8°, giving [-4, 20])
+  // rather than keeping the old warn range, which was built around the
+  // previous ideal and would no longer make sense next to this one.
   const DEFAULT_POSTURE_METRICS = [
     { id: "shoulderLevel", name: "Allineamento spalle", idealRangeDegrees: [0, 10], warnRangeDegrees: [10, 20] },
     { id: "bowArmElbow", name: "Gomito braccio arco", idealRangeDegrees: [160, 180], warnRangeDegrees: [145, 160] },
-    { id: "drawArmElbow", name: "Gomito braccio corda", idealRangeDegrees: [25, 40], warnRangeDegrees: [10, 50] },
+    { id: "drawArmElbow", name: "Gomito braccio corda", idealRangeDegrees: [1, 15], warnRangeDegrees: [-4, 20] },
     { id: "headTilt", name: "Inclinazione testa", idealRangeDegrees: [0, 15], warnRangeDegrees: [15, 25] },
     { id: "torsoVerticality", name: "Verticalità busto", idealRangeDegrees: [0, 5], warnRangeDegrees: [5, 12] },
-    { id: "hipLevel", name: "Livellamento bacino", idealRangeDegrees: [0, 8], warnRangeDegrees: [8, 15] }
+    { id: "hipLevel", name: "Livellamento bacino", idealRangeDegrees: [0, 8], warnRangeDegrees: [8, 15] },
+    { id: "footStanceAngle", name: "Apertura piedi rispetto al bacino", idealRangeDegrees: [-2.5, 4.0], warnRangeDegrees: [-11.25, 12.75] }
   ];
 
   function evaluatePostureMetric(valueDegrees, definition) {
+    if (!definition.idealRangeDegrees || !definition.warnRangeDegrees) return null;
     const [idealMinDegrees, idealMaxDegrees] = definition.idealRangeDegrees;
     const [warnMinDegrees, warnMaxDegrees] = definition.warnRangeDegrees;
     if (valueDegrees >= idealMinDegrees && valueDegrees <= idealMaxDegrees) return "ok";
     if (valueDegrees >= warnMinDegrees && valueDegrees <= warnMaxDegrees) return "warning";
     return "outOfRange";
+  }
+
+  // Null-safe clone of a metric-definition list — used both for the
+  // initial customMetricDefinitions below and by "Ripristina soglie
+  // default": a plain [...definition.idealRangeDegrees] spread would
+  // throw for footStanceAngle's null default, since spreading null is
+  // a TypeError.
+  function cloneMetricDefinitions(definitions) {
+    return definitions.map((definition) => ({
+      id: definition.id,
+      name: definition.name,
+      idealRangeDegrees: definition.idealRangeDegrees ? [...definition.idealRangeDegrees] : null,
+      warnRangeDegrees: definition.warnRangeDegrees ? [...definition.warnRangeDegrees] : null
+    }));
   }
 
   function confidentKeypoint(frame, keypointName) {
@@ -477,6 +630,15 @@
       rawValuesByMetricId.torsoVerticality = tiltFromVerticalDegrees(midShoulder, midHip);
     }
 
+    // Stance "opening" relative to the pelvis: angle between the feet
+    // line (heels, per direct request — not ankles/toes) and the hip
+    // line. No default range (see DEFAULT_POSTURE_METRICS above).
+    const leftHeel = confidentKeypoint(frame, "left_heel");
+    const rightHeel = confidentKeypoint(frame, "right_heel");
+    if (leftHeel && rightHeel && leftHip && rightHip) {
+      rawValuesByMetricId.footStanceAngle = angleBetweenLinesDegrees(leftHeel, rightHeel, leftHip, rightHip);
+    }
+
     return metricDefinitions.map((definition) => {
       const valueDegrees = rawValuesByMetricId[definition.id];
       if (valueDegrees === undefined) {
@@ -489,6 +651,80 @@
         status: evaluatePostureMetric(valueDegrees, definition)
       };
     });
+  }
+
+  // ---- Score gauge: duplicated computeMetricScorePercent()/
+  // computePostureScorePercent() ----
+  //
+  // Duplicated from src/posture-analysis/metrics.ts, same tradeoff as
+  // the rest of this inline script (no build step, cannot import
+  // TypeScript). Kept in sync by hand — if the scoring curve changes
+  // there, it must change here too.
+  function computeMetricScorePercent(valueDegrees, definition) {
+    if (!definition.idealRangeDegrees || !definition.warnRangeDegrees) {
+      throw new Error(
+        `computeMetricScorePercent requires configured ranges — "${definition.id}" has none (check for null before calling)`
+      );
+    }
+    const [idealMinDegrees, idealMaxDegrees] = definition.idealRangeDegrees;
+    const [warnMinDegrees, warnMaxDegrees] = definition.warnRangeDegrees;
+    if (valueDegrees >= idealMinDegrees && valueDegrees <= idealMaxDegrees) return 100;
+
+    const isBelowIdeal = valueDegrees < idealMinDegrees;
+    const idealEdgeDegrees = isBelowIdeal ? idealMinDegrees : idealMaxDegrees;
+    const warnBandWidthDegrees = isBelowIdeal ? idealMinDegrees - warnMinDegrees : warnMaxDegrees - idealMaxDegrees;
+    if (warnBandWidthDegrees <= 0) return 0;
+
+    const distancePastIdealDegrees = Math.abs(valueDegrees - idealEdgeDegrees);
+    if (distancePastIdealDegrees <= warnBandWidthDegrees) {
+      return 100 - 50 * (distancePastIdealDegrees / warnBandWidthDegrees);
+    }
+    const excessDegrees = distancePastIdealDegrees - warnBandWidthDegrees;
+    return Math.max(0, 50 - 50 * (excessDegrees / warnBandWidthDegrees));
+  }
+
+  function computePostureScorePercent(results, definitions) {
+    const scores = [];
+    for (const result of results) {
+      if (result.valueDegrees === null) continue;
+      const definition = definitions.find((candidate) => candidate.id === result.id);
+      if (!definition || !definition.idealRangeDegrees || !definition.warnRangeDegrees) continue;
+      scores.push(computeMetricScorePercent(result.valueDegrees, definition));
+    }
+    if (scores.length === 0) return null;
+    return scores.reduce((sum, score) => sum + score, 0) / scores.length;
+  }
+
+  function scoreGaugeColor(percent) {
+    if (percent === null) return "#64748b";
+    if (percent >= 80) return "#4ade80";
+    if (percent >= 50) return "#fb923c";
+    return "#f87171";
+  }
+
+  // Donut gauge: an empty gray ring + "n/d" when percent is null
+  // (nothing scorable this frame), otherwise an arc proportional to
+  // percent/100, color-coded the same as the metrics table
+  // (green/orange/red), starting from the top (rotate -90) and
+  // filling clockwise.
+  function renderScoreGaugeSvg(percent) {
+    const size = 120;
+    const strokeWidth = 12;
+    const radius = (size - strokeWidth) / 2;
+    const center = size / 2;
+    const circumference = 2 * Math.PI * radius;
+    const color = scoreGaugeColor(percent);
+    const fraction = percent === null ? 0 : Math.max(0, Math.min(100, percent)) / 100;
+    const dashOffset = circumference * (1 - fraction);
+    const label = percent === null ? "n/d" : `${Math.round(percent)}%`;
+
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="#1e293b" stroke-width="${strokeWidth}" />
+      <circle cx="${center}" cy="${center}" r="${radius}" fill="none" stroke="${color}" stroke-width="${strokeWidth}"
+        stroke-linecap="round" stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${dashOffset.toFixed(2)}"
+        transform="rotate(-90 ${center} ${center})" />
+      <text x="${center}" y="${center + 7}" text-anchor="middle" font-size="22" font-weight="bold" fill="${color}" font-family="system-ui, sans-serif">${label}</text>
+    </svg>`;
   }
 
   // ---- Per-archer threshold calibration ----
@@ -505,12 +741,7 @@
   // customMetricDefinitions is a mutable, deep-cloned working copy —
   // never mutate DEFAULT_POSTURE_METRICS itself, so "Ripristina soglie
   // default" always has a clean original to go back to.
-  let customMetricDefinitions = DEFAULT_POSTURE_METRICS.map((definition) => ({
-    id: definition.id,
-    name: definition.name,
-    idealRangeDegrees: [...definition.idealRangeDegrees],
-    warnRangeDegrees: [...definition.warnRangeDegrees]
-  }));
+  let customMetricDefinitions = cloneMetricDefinitions(DEFAULT_POSTURE_METRICS);
 
   // The most recently computed metric results for whichever frame is
   // currently displayed — kept around so "Cattura come ideale" (below)
@@ -522,51 +753,35 @@
   let currentFrameIndex = 0;
 
   const video = document.getElementById("video");
+  const stillImage = document.getElementById("stillImage");
   const overlay = document.getElementById("overlay");
   const videoWrap = document.getElementById("videoWrap");
   const frameInfo = document.getElementById("frameInfo");
+  const scoreGaugeWrap = document.getElementById("scoreGaugeWrap");
+  const mediaInput = document.getElementById("mediaInput");
+  const drawSideSelect = document.getElementById("drawSideSelect");
+  const extractFpsInput = document.getElementById("extractFpsInput");
+  const showLabelsCheckbox = document.getElementById("showLabelsCheckbox");
+  const processingStatus = document.getElementById("processingStatus");
+  const cancelProcessingBtn = document.getElementById("cancelProcessingBtn");
   const playPauseBtn = document.getElementById("playPauseBtn");
   const prevFrameBtn = document.getElementById("prevFrameBtn");
   const nextFrameBtn = document.getElementById("nextFrameBtn");
   const resetFrameBtn = document.getElementById("resetFrameBtn");
-  const mismatchWarning = document.getElementById("mismatchWarning");
   const captureIdealBtn = document.getElementById("captureIdealBtn");
   const resetThresholdsBtn = document.getElementById("resetThresholdsBtn");
   const exportThresholdsBtn = document.getElementById("exportThresholdsBtn");
   const importThresholdsInput = document.getElementById("importThresholdsInput");
   const thresholdsTableBody = document.querySelector("#thresholdsTable tbody");
 
-  // Real bug this caught in practice, not a hypothetical: loading a
-  // timeline JSON built from ONE video (e.g. the Kim Woojin calibration
-  // clip) together with a DIFFERENT video (e.g. the user's own phone
-  // footage) silently "worked" — no error anywhere — but every keypoint
-  // then belongs to a completely different piece of footage, so the
-  // skeleton looks placed at random relative to what's actually on
-  // screen. There is no code-level connection between the two files the
-  // user picks (this page never re-derives one from the other), so this
-  // has to be checked explicitly rather than assumed correct. Checked by
-  // pixel dimensions rather than file name, since names can be renamed
-  // freely but a real pixel-dimension mismatch is unambiguous, and
-  // requires no assumption about naming conventions.
-  function checkDimensionMismatch() {
-    if (!timeline || !video.videoWidth || !video.videoHeight) {
-      mismatchWarning.style.display = "none";
-      return;
-    }
-    if (video.videoWidth !== timeline.widthPixels || video.videoHeight !== timeline.heightPixels) {
-      mismatchWarning.style.display = "block";
-      mismatchWarning.textContent =
-        `Attenzione: il video caricato è ${video.videoWidth}x${video.videoHeight}px, ma questo file JSON ` +
-        `è stato calcolato da build-posture-timeline.cjs per un video ${timeline.widthPixels}x${timeline.heightPixels}px` +
-        (timeline.videoFileName ? ` ("${timeline.videoFileName}")` : "") +
-        `. Video e dati probabilmente non corrispondono: lo scheletro sovrapposto non ha alcun rapporto ` +
-        `con questo video. Genera un JSON per QUESTO video con build-posture-timeline.cjs, oppure carica ` +
-        `il video giusto per questo JSON.`;
-    } else {
-      mismatchWarning.style.display = "none";
-      mismatchWarning.textContent = "";
-    }
-  }
+  // "video" (playable, multi-frame, driven by the <video> element +
+  // its playback controls) or "image" (a single static frame, driven
+  // by the <img> element, no play/frame-step controls) — set once
+  // processing a newly selected file starts, read by
+  // maybeEnableControls()/renderCurrentFrame() below to know which
+  // element/controls are actually live right now.
+  let currentMediaType = null;
+  let processingCancelled = false;
 
   function escapeHtml(value) {
     return String(value)
@@ -575,40 +790,502 @@
       .replace(/>/g, "&gt;");
   }
 
-  document.getElementById("videoInput").addEventListener("change", (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    video.src = URL.createObjectURL(file);
-    maybeEnableControls();
-  });
+  function setProcessingStatus(text, isError) {
+    processingStatus.textContent = text;
+    processingStatus.style.display = text ? "block" : "none";
+    processingStatus.classList.toggle("error", Boolean(isError));
+  }
 
-  document.getElementById("jsonInput").addEventListener("change", (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        timeline = JSON.parse(reader.result);
-      } catch (error) {
-        alert("File JSON non valido: " + error.message);
+  // ---- In-browser BlazePose pipeline ----
+  //
+  // Why this exists: the player used to require a separate, already-
+  // computed JSON file (from scripts/build-posture-timeline.cjs,
+  // a Node script using ffmpeg + BlazePose) alongside the video —
+  // accurate, but a two-step, terminal-first workflow. This runs the
+  // exact same BlazePose model directly in the browser tab instead:
+  // load a video or a single photo, get keypoints and posture metrics
+  // with no separate script run first. The uploaded file itself is
+  // never sent anywhere — it stays in this tab's memory exactly like
+  // the old JSON-based flow did for the video — but TensorFlow.js and
+  // the BlazePose model weights ARE fetched from the internet (a CDN
+  // for the libraries, tfhub.dev for the model — the same source the
+  // Node scripts already download from on first use), a real, new
+  // network dependency this page did not have before. Confirmed
+  // working end-to-end in a real browser tab before writing this:
+  // both CDN bundles load without errors and expose the expected
+  // `tf`/`poseDetection` globals, a real detector can be created
+  // (backend auto-selects "webgl", not the WASM backend the Node
+  // scripts use — see createFreshPoseDetector() below for why that's
+  // the right choice here, not just an accident), and estimatePoses()
+  // runs without throwing against both an HTMLCanvasElement and an
+  // HTMLImageElement. "Without throwing" is doing real work in that
+  // sentence, not just hedging — a later real photo showed
+  // HTMLImageElement input can run cleanly and still return a wrong
+  // result; see createFreshPoseDetector()'s doc comment for why only a
+  // <canvas> snapshot is actually trusted anywhere in this page.
+  const TFJS_VERSION = "4.22.0";
+  const POSE_DETECTION_VERSION = "2.1.3";
+
+  let librariesLoadedPromise = null;
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Impossibile caricare ${src} — verifica la connessione a internet`));
+      document.head.appendChild(script);
+    });
+  }
+
+  // Lazy — only actually fetched the first time a file is processed,
+  // so simply opening this page (no file selected yet) still needs no
+  // network access, same as before.
+  function ensureLibrariesLoaded() {
+    if (!librariesLoadedPromise) {
+      librariesLoadedPromise = (async () => {
+        await loadScript(`https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@${TFJS_VERSION}/dist/tf.min.js`);
+        await loadScript(
+          `https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@${POSE_DETECTION_VERSION}/dist/pose-detection.min.js`
+        );
+      })();
+    }
+    return librariesLoadedPromise;
+  }
+
+  // Backend: WebGL, not the WASM backend src/pose-estimation/detector.ts
+  // uses in Node. That choice was specifically about tfjs-node's
+  // native backend missing image-preprocessing kernels BlazePose
+  // needs (see that file's own doc comment) — a Node-only problem.
+  // In a real browser, WebGL is TensorFlow.js's standard, fully-
+  // supported, GPU-accelerated backend for BlazePose (the same one
+  // TF.js's own webcam demos use), so there is no equivalent reason
+  // to reach for WASM here — confirmed by the real browser test
+  // above, which returned backend "webgl" with no explicit setup.
+  //
+  // modelType: "heavy", NOT "full" — a real, confirmed divergence from
+  // pose-estimation/detector.ts's Node-side choice, not an oversight.
+  // First real end-to-end run against a real archer video (through
+  // this exact CDN-loaded pose-detection@2.1.3 + tfjs@4.22.0
+  // combination) produced a structurally valid pose (posesLength: 1)
+  // whose every keypoint AND top-level score were NaN on EVERY frame
+  // — with "full" specifically. Diagnosed before guessing at a fix:
+  // reproduced identically on both the WebGL and CPU backends (rules
+  // out a GPU/software-rendering precision issue) and identically
+  // against both the raw <video> element and a <canvas> snapshot of
+  // the exact same frame (rules out a video-element-specific decoding
+  // issue) — narrowing it to something specific to the "full" model
+  // graph itself in this library version, not this page's own
+  // integration code. Both "lite" and "heavy" were then confirmed, on
+  // that same real frame, to return real pixel coordinates and
+  // confidence scores (0.999+) — this is a "full" modelType bug in
+  // this specific version combination, not a "BlazePose doesn't work
+  // in a browser" problem. "heavy" (more accurate than "full", not
+  // less) was chosen over "lite" per this project's own already-stated
+  // preference for offline video analysis: pose-estimation/detector.ts's
+  // doc comment picks "full" specifically because "accuracy matters
+  // more than the latency trade-off a live camera feed would require
+  // ('lite')" — "heavy" is the same reasoning taken one step further,
+  // and confirmed fast enough here to still be practical: ~60ms/frame
+  // measured on WebGL in this same real test (vs. ~30ms for "lite"),
+  // both comfortably interactive for offline, non-live processing.
+  //
+  // CONFIRMED ROOT CAUSE, after a long diagnostic trail (see
+  // CHANGELOG.md/README.md for the fuller history — including two
+  // earlier fixes that each addressed a real, separate bug without
+  // fully explaining the reported symptom): passing a live DOM media
+  // element (an HTMLVideoElement OR an HTMLImageElement) directly to
+  // estimatePoses() is unreliable in this library/browser combination
+  // — only a <canvas> snapshot has been confirmed reliable. Two
+  // separate, clean, deterministic isolations, same pattern both
+  // times: the SAME detector instance, at the SAME moment, given a
+  // <canvas> snapshot of a frame returned real coordinates (0.999+
+  // confidence) every time, and given the live element directly for
+  // that IDENTICAL frame did not — nothing else varied between the two
+  // calls (no memory pressure difference, no cross-file state, same
+  // detector object). First found via <video>: every keypoint AND the
+  // top-level pose score came back NaN. Then found again, independently,
+  // via <img>: a real 3213x5712 photo returned a confidently WRONG (not
+  // NaN — high-confidence, 0.998+) position, repeated byte-for-byte
+  // identical across several fresh detectors, while a canvas snapshot
+  // of that identical photo reliably returned the visually correct
+  // position every time — a more dangerous failure mode than NaN,
+  // since isDegeneratePoseFrame() below cannot catch a wrong-but-
+  // plausible-looking result. Reading pixels via a <canvas>
+  // drawImage() snapshot forces a synchronous, fully-materialized
+  // bitmap before any WebGL texture upload; reading directly from a
+  // live element depends on whatever the library does internally to
+  // pull pixels from it, which this exact version evidently does not
+  // do reliably for either element type. Fixed in both
+  // processVideoFile() (its own frameCanvas) and processImageFile()
+  // (its own imageCanvas) by always drawing to a canvas first — this
+  // page never passes a live <video>/<img> element to estimatePoses()
+  // at all, anywhere.
+  //
+  // Two earlier, real bugs found along the way to this one, both still
+  // fixed and both worth keeping fixed even though neither was the
+  // final answer: (1) a GPU memory leak — every PoseDetector instance
+  // holds its own copy of BlazePose's model weights as WebGL textures,
+  // and a debugging session that created ~20 instances without ever
+  // calling `detector.dispose()` (a real method this library exposes)
+  // measured 26,268 live tensors and ~2.94GB of allocated GPU memory
+  // via `tf.memory()`; this page now disposes every detector as soon
+  // as it is done with it. (2) a detector memoized across different
+  // files processed in one tab session, replaced by a fresh detector
+  // per file. Neither explains the video-vs-canvas result above (the
+  // clean A/B test had zero leaked memory and used one single-purpose
+  // detector), but both were real, reproducible, and are not reverted.
+  // isDegeneratePoseFrame()/sanitizeDegeneratePoseFrame() below remain
+  // as a further, independent line of defense (retry once, then
+  // degrade to "nothing detected" rather than crash) in case some
+  // other cause ever produces this same NaN signature again.
+  function createFreshPoseDetector() {
+    return (async () => {
+      await ensureLibrariesLoaded();
+      return poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, {
+        runtime: "tfjs",
+        modelType: "heavy"
+      });
+    })();
+  }
+
+  // A working BlazePose result — even a genuinely low-confidence one,
+  // from an ambiguous or partly-occluded frame — still has real,
+  // finite pixel coordinates; a real "nothing detected" frame comes
+  // back with an EMPTY keypoints array (see
+  // estimatePoseFrameFromMediaElement below), not 33 NaN-filled ones.
+  // NaN across every keypoint despite a non-empty array is the
+  // signature of the GPU-memory-leak bug documented on
+  // createFreshPoseDetector() above, not a real "no pose here" result
+  // — checked on just the first keypoint (cheap, and every keypoint is
+  // affected together when this bug occurs, confirmed above) rather
+  // than scanning all 33 every time.
+  function isDegeneratePoseFrame(poseFrame) {
+    return poseFrame.keypoints.length > 0 && !Number.isFinite(poseFrame.keypoints[0].xPixels);
+  }
+
+  // Degrades a degenerate result (see above) into the exact same
+  // shape a genuine "no pose found here" frame already has — an empty
+  // keypoints array. analyzePosture()'s confidentKeypoint() already
+  // treats a missing keypoint as a real "cannot tell" (see
+  // src/posture-analysis/analyze.ts), so no separate handling is
+  // needed downstream; this just makes a persistently-degenerate
+  // result look the same as any other frame with nothing detected in
+  // it, rather than leaking NaN into the rest of the pipeline.
+  function sanitizeDegeneratePoseFrame(poseFrame) {
+    return { timestampMilliseconds: poseFrame.timestampMilliseconds, keypoints: [] };
+  }
+
+  // Browser-side equivalent of src/pose-estimation/estimate.ts's
+  // estimatePoseFrame() — same keypoint mapping, adapted to accept a
+  // TensorImageSource instead of a pre-decoded Tensor3D, since the
+  // browser API accepts one directly and doing the tensor decode
+  // ourselves would just be extra unnecessary work. ONLY a <canvas>
+  // snapshot is confirmed reliable, though — both an HTMLVideoElement
+  // and an HTMLImageElement are technically accepted by the same API
+  // but were each found NOT reliable here (see
+  // createFreshPoseDetector()'s doc comment: the live <video> element
+  // first, then a large real photo through the live <img> element
+  // reproducing the same class of bug — a confidently wrong, not NaN,
+  // position). Both processVideoFile() and processImageFile()
+  // therefore always draw to a canvas first and pass that canvas here,
+  // never the live <video>/<img> element itself.
+  async function estimatePoseFrameFromMediaElement(detector, mediaElement, timestampMilliseconds) {
+    const poses = await detector.estimatePoses(mediaElement, undefined, timestampMilliseconds);
+    const firstPose = poses[0];
+    const keypoints = (firstPose?.keypoints ?? []).map((keypoint, index) => ({
+      name: keypoint.name ?? `keypoint_${index}`,
+      xPixels: keypoint.x,
+      yPixels: keypoint.y,
+      confidenceScore: keypoint.score ?? 0
+    }));
+    return { timestampMilliseconds, keypoints };
+  }
+
+  // Resolves once `videoEl.currentTime` actually reaches
+  // `timeSeconds` and that frame's pixels are ready to read — some
+  // browsers do not fire 'seeked' when the requested time equals the
+  // current one already (e.g. asking for t=0 right after load), so
+  // that case resolves immediately instead of waiting forever.
+  function seekVideoTo(videoEl, timeSeconds) {
+    return new Promise((resolve) => {
+      if (Math.abs(videoEl.currentTime - timeSeconds) < 1e-3) {
+        resolve();
         return;
       }
-      videoWrap.style.aspectRatio = `${timeline.widthPixels} / ${timeline.heightPixels}`;
-      checkDimensionMismatch();
+      function onSeeked() {
+        videoEl.removeEventListener("seeked", onSeeked);
+        resolve();
+      }
+      videoEl.addEventListener("seeked", onSeeked);
+      videoEl.currentTime = timeSeconds;
+    });
+  }
+
+  // A frame count large enough that in-browser BlazePose (no compiled
+  // binary, no server GPU farm — just this one tab) could plausibly
+  // take minutes, worth confirming before committing to it rather
+  // than silently locking up the tab — the exact "performance on
+  // longer videos" concern docs/architecture/AWI_WEB_INTERFACE.md
+  // already flags as unresolved for this same client-side approach.
+  const CONFIRM_FRAME_COUNT_THRESHOLD = 300;
+
+  async function processImageFile(file) {
+    currentMediaType = "image";
+    video.pause();
+    video.removeAttribute("src");
+    video.style.display = "none";
+    stillImage.style.display = "block";
+
+    const objectUrl = URL.createObjectURL(file);
+    await new Promise((resolve, reject) => {
+      stillImage.onload = () => resolve();
+      stillImage.onerror = () => reject(new Error("Impossibile leggere questo file come immagine"));
+      stillImage.src = objectUrl;
+    });
+
+    const widthPixels = stillImage.naturalWidth;
+    const heightPixels = stillImage.naturalHeight;
+    videoWrap.style.aspectRatio = `${widthPixels} / ${heightPixels}`;
+
+    // A <canvas> snapshot, NOT the <img> element directly — see
+    // createFreshPoseDetector()'s doc comment: the live <video>
+    // element was already found unreliable as direct estimatePoses()
+    // input; a large real photo (3213x5712) showed the exact same
+    // class of bug through <img> — a confidently wrong (not NaN)
+    // position, reproduced byte-for-byte identical across repeated
+    // fresh detectors, while a canvas snapshot of that identical image
+    // reliably returned the visually correct position every time. Only
+    // <canvas> input has been confirmed reliable; treat any other
+    // TensorImageSource as unproven, not just <video>.
+    const imageCanvas = document.createElement("canvas");
+    imageCanvas.width = widthPixels;
+    imageCanvas.height = heightPixels;
+    imageCanvas.getContext("2d").drawImage(stillImage, 0, 0);
+
+    setProcessingStatus("Caricamento del modello di stima della posa (BlazePose)...");
+    let detector = await createFreshPoseDetector();
+
+    setProcessingStatus("Analisi dell'immagine...");
+    let poseFrame = await estimatePoseFrameFromMediaElement(detector, imageCanvas, 0);
+    let degenerate = false;
+
+    // See createFreshPoseDetector()'s doc comment: a degenerate result
+    // was traced to leaked GPU memory from undisposed detectors, not
+    // this image's own content — but the retry-then-degrade path stays
+    // as a second line of defense either way, rather than failing the
+    // whole upload over it.
+    if (isDegeneratePoseFrame(poseFrame)) {
+      setProcessingStatus("Nuovo tentativo di stima della posa...");
+      detector.dispose();
+      detector = await createFreshPoseDetector();
+      poseFrame = await estimatePoseFrameFromMediaElement(detector, imageCanvas, 0);
+      if (isDegeneratePoseFrame(poseFrame)) {
+        poseFrame = sanitizeDegeneratePoseFrame(poseFrame);
+        degenerate = true;
+      }
+    }
+
+    // Never leave this detector's GPU-resident model weights around —
+    // see createFreshPoseDetector()'s doc comment for the real, measured
+    // leak this prevents (~2.94GB / 26,268 tensors accumulated in one
+    // session without it).
+    detector.dispose();
+
+    const drawSide = drawSideSelect.value === "left" ? "left" : "right";
+    timeline = { widthPixels, heightPixels, drawSide, videoFileName: file.name, frames: [poseFrame] };
+
+    setProcessingStatus(
+      degenerate ? "Completato: nessuna posa rilevata in questa immagine." : "Completato."
+    );
+  }
+
+  async function processVideoFile(file) {
+    currentMediaType = "video";
+    stillImage.removeAttribute("src");
+    stillImage.style.display = "none";
+    video.style.display = "block";
+
+    const objectUrl = URL.createObjectURL(file);
+    video.src = objectUrl;
+
+    await new Promise((resolve, reject) => {
+      function onLoaded() {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        video.removeEventListener("error", onError);
+        resolve();
+      }
+      function onError() {
+        video.removeEventListener("loadedmetadata", onLoaded);
+        video.removeEventListener("error", onError);
+        reject(new Error("Impossibile leggere questo file come video"));
+      }
+      video.addEventListener("loadedmetadata", onLoaded);
+      video.addEventListener("error", onError);
+    });
+
+    const widthPixels = video.videoWidth;
+    const heightPixels = video.videoHeight;
+    const durationSeconds = video.duration;
+    videoWrap.style.aspectRatio = `${widthPixels} / ${heightPixels}`;
+
+    if (!isFinite(durationSeconds) || durationSeconds <= 0) {
+      throw new Error("Durata del video non valida o non determinabile");
+    }
+
+    const requestedFps = Number(extractFpsInput.value) || 5;
+    const stepSeconds = 1 / requestedFps;
+    const frameCount = Math.max(1, Math.floor(durationSeconds / stepSeconds) + 1);
+
+    if (frameCount > CONFIRM_FRAME_COUNT_THRESHOLD) {
+      const proceed = confirm(
+        `Questo video produrrà ${frameCount} fotogrammi da elaborare con BlazePose in questo browser: ` +
+          `può richiedere diversi minuti a seconda del computer. Un valore più basso in "Fotogrammi/sec" ` +
+          `elabora più in fretta. Continuare comunque?`
+      );
+      if (!proceed) {
+        throw new Error("Elaborazione annullata prima di iniziare.");
+      }
+    }
+
+    setProcessingStatus("Caricamento del modello di stima della posa (BlazePose)...");
+    let detector = await createFreshPoseDetector();
+
+    // Frames are read via a <canvas> snapshot of the video, NOT the
+    // live <video> element passed directly — this is the actual,
+    // finally-isolated root cause of the NaN bug documented on
+    // createFreshPoseDetector() below (a GPU memory leak was a real,
+    // separate bug found and fixed along the way, but it was not this
+    // one). Confirmed by a clean, deterministic A/B test: the exact
+    // same detector, at the exact same moment, given <canvas> input
+    // for a frame returned real coordinates every time, and given the
+    // <video> element directly for that identical frame returned NaN
+    // every time — no memory pressure, no cross-file state, nothing
+    // else varying between the two calls. One reusable canvas here
+    // (sized once, redrawn every frame) avoids allocating a new one
+    // per frame in a long video.
+    const frameCanvas = document.createElement("canvas");
+    frameCanvas.width = widthPixels;
+    frameCanvas.height = heightPixels;
+    const frameCanvasCtx = frameCanvas.getContext("2d");
+
+    const drawSide = drawSideSelect.value === "left" ? "left" : "right";
+    const frames = [];
+    let degenerateFrameCount = 0;
+    processingCancelled = false;
+    cancelProcessingBtn.style.display = "inline-block";
+
+    for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+      if (processingCancelled) {
+        throw new Error("Elaborazione annullata dall'utente.");
+      }
+
+      const timeSeconds = Math.min(frameIndex * stepSeconds, durationSeconds);
+      setProcessingStatus(
+        `Elaborazione fotogramma ${frameIndex + 1}/${frameCount} (t=${(timeSeconds * 1000).toFixed(0)} ms)...`
+      );
+      // Yields to the event loop so the status text above actually
+      // repaints before the next (synchronous-feeling) WebGL-heavy
+      // estimatePoses() call — without this, the browser can batch the
+      // DOM update behind the compute and the text appears to "jump".
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      await seekVideoTo(video, timeSeconds);
+      frameCanvasCtx.drawImage(video, 0, 0, widthPixels, heightPixels);
+      let poseFrame = await estimatePoseFrameFromMediaElement(detector, frameCanvas, timeSeconds * 1000);
+
+      // See createFreshPoseDetector()'s doc comment: this retry-then-
+      // degrade path is now a second, independent line of defense
+      // (the actual root cause — reading pixels from the live <video>
+      // element directly — is fixed above by drawing to frameCanvas
+      // first), checked every frame (cheap: one Number.isFinite call)
+      // rather than just the first.
+      if (isDegeneratePoseFrame(poseFrame)) {
+        setProcessingStatus(
+          `Fotogramma ${frameIndex + 1}/${frameCount}: nuovo tentativo di stima della posa...`
+        );
+        detector.dispose();
+        detector = await createFreshPoseDetector();
+        poseFrame = await estimatePoseFrameFromMediaElement(detector, frameCanvas, timeSeconds * 1000);
+        if (isDegeneratePoseFrame(poseFrame)) {
+          // A single bad frame (still degenerate after a fresh
+          // detector) is treated as "nothing detected" and the video
+          // keeps processing — the same honest, non-fatal outcome a
+          // frame with a genuinely undetectable pose already gets,
+          // rather than losing every other frame's real result over
+          // one bad one.
+          poseFrame = sanitizeDegeneratePoseFrame(poseFrame);
+          degenerateFrameCount += 1;
+        }
+      }
+
+      frames.push(poseFrame);
+    }
+
+    // Never leave this detector's GPU-resident model weights around —
+    // see createFreshPoseDetector()'s doc comment for the real,
+    // measured leak this prevents.
+    detector.dispose();
+
+    if (degenerateFrameCount === frames.length) {
+      throw new Error(
+        "La stima della posa non ha restituito coordinate valide per NESSUN fotogramma di questo video " +
+          "— probabile problema del modello/libreria (ricarica la pagina e riprova), non di questo video specifico."
+      );
+    }
+
+    timeline = { widthPixels, heightPixels, drawSide, videoFileName: file.name, frames };
+    video.currentTime = 0;
+    const degenerateNote =
+      degenerateFrameCount > 0
+        ? ` (${degenerateFrameCount} fotogramma${degenerateFrameCount === 1 ? "" : "i"} senza posa rilevata)`
+        : "";
+    setProcessingStatus(`Completato: ${frames.length} fotogrammi elaborati${degenerateNote}.`);
+  }
+
+  cancelProcessingBtn.addEventListener("click", () => {
+    processingCancelled = true;
+  });
+
+  mediaInput.addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    timeline = null;
+    maybeEnableControls();
+    video.pause();
+    playPauseBtn.textContent = "Play";
+
+    try {
+      if (file.type.startsWith("image/")) {
+        await processImageFile(file);
+      } else if (file.type.startsWith("video/")) {
+        await processVideoFile(file);
+      } else {
+        throw new Error(`Tipo di file non supportato: ${file.type || "sconosciuto"}`);
+      }
+    } catch (error) {
+      timeline = null;
+      setProcessingStatus(`Errore: ${error.message}`, true);
+      cancelProcessingBtn.style.display = "none";
       maybeEnableControls();
-    };
-    reader.readAsText(file);
+      return;
+    }
+
+    cancelProcessingBtn.style.display = "none";
+    maybeEnableControls();
+    renderCurrentFrame();
   });
 
   function maybeEnableControls() {
-    const ready = Boolean(video.src) && Boolean(timeline);
-    playPauseBtn.disabled = !ready;
-    prevFrameBtn.disabled = !ready;
-    nextFrameBtn.disabled = !ready;
-    // "Cattura come ideale" needs a currently-displayed frame's real
-    // values (lastPostureResults) to capture from — the threshold
-    // editing/reset/export/import controls do not depend on any
-    // loaded video or JSON, so they stay enabled from page load.
+    const ready = Boolean(timeline);
+    const isPlayableVideo = ready && currentMediaType === "video";
+    playPauseBtn.disabled = !isPlayableVideo;
+    prevFrameBtn.disabled = !isPlayableVideo;
+    nextFrameBtn.disabled = !isPlayableVideo;
+    // "Cattura come ideale" (and manual point correction) work the
+    // same way against a single image frame as against a video frame
+    // — only actual playback/frame-stepping needs multiple frames.
     captureIdealBtn.disabled = !ready;
   }
 
@@ -635,7 +1312,10 @@
 
   function renderCurrentFrame() {
     if (!timeline) return;
-    currentFrameIndex = findFrameIndexForTime(video.currentTime);
+    // A single-image timeline always has exactly one frame — no video
+    // element to read a currentTime from (its src is cleared entirely
+    // in image mode, see processImageFile()).
+    currentFrameIndex = currentMediaType === "image" ? 0 : findFrameIndexForTime(video.currentTime);
     const frame = timeline.frames[currentFrameIndex];
 
     // Recomputed fresh from the raw keypoints on every render, against
@@ -654,11 +1334,13 @@
       postureResults,
       drawSide: timeline.drawSide,
       widthPixels: timeline.widthPixels,
-      heightPixels: timeline.heightPixels
+      heightPixels: timeline.heightPixels,
+      showLabels: showLabelsCheckbox.checked
     });
     overlay.innerHTML = svg || "";
 
     updateMetricsTable(postureResults);
+    updateScoreGauge(postureResults);
     frameInfo.textContent =
       `t = ${frame.timestampMilliseconds.toFixed(0)} ms — fotogramma ${currentFrameIndex + 1}/${timeline.frames.length}`;
     // Each frame tracks its own correction state independently (see
@@ -671,17 +1353,28 @@
   function updateMetricsTable(results) {
     const tbody = document.querySelector("#metricsTable tbody");
     tbody.innerHTML = (results || []).map((result) => {
-      const hasValue = result.valueDegrees !== null && result.status !== null;
+      // Three distinct states, not two: no value at all (a required
+      // keypoint was missing/low-confidence), a real value with no
+      // classification yet (footStanceAngle before it is calibrated —
+      // see DEFAULT_POSTURE_METRICS), and a fully classified value.
+      const hasValue = result.valueDegrees !== null;
+      const isClassified = hasValue && result.status !== null;
       const color = !hasValue ? "#64748b"
+        : !isClassified ? "#94a3b8"
         : result.status === "ok" ? "#4ade80"
         : result.status === "warning" ? "#fb923c"
         : "#f87171";
       const valueText = hasValue ? `${result.valueDegrees.toFixed(1)}°` : "n/d";
-      const statusText = hasValue ? result.status : "keypoint non rilevato";
+      const statusText = !hasValue ? "keypoint non rilevato" : !isClassified ? "non calibrato" : result.status;
       return `<tr><td>${escapeHtml(result.name)}</td>` +
         `<td style="color:${color};font-weight:bold">${valueText}</td>` +
         `<td style="color:${color}">${escapeHtml(statusText)}</td></tr>`;
     }).join("");
+  }
+
+  function updateScoreGauge(results) {
+    const percent = computePostureScorePercent(results, customMetricDefinitions);
+    scoreGaugeWrap.innerHTML = renderScoreGaugeSvg(percent);
   }
 
   // Continuous sync while playing: requestVideoFrameCallback fires once
@@ -689,7 +1382,6 @@
   // timer), falling back to the coarser 'timeupdate' event on browsers
   // that don't support it.
   video.addEventListener("loadeddata", () => {
-    checkDimensionMismatch();
     renderCurrentFrame();
     if (video.requestVideoFrameCallback) {
       const loop = () => {
@@ -718,6 +1410,13 @@
 
   document.getElementById("rateSelect").addEventListener("change", (event) => {
     video.playbackRate = Number(event.target.value);
+  });
+
+  // Just a redraw of the current frame — no reprocessing, no new
+  // BlazePose call — since showLabels only affects renderSkeletonOverlaySvg()'s
+  // own output, not the underlying keypoints.
+  showLabelsCheckbox.addEventListener("change", () => {
+    renderCurrentFrame();
   });
 
   prevFrameBtn.addEventListener("click", () => {
@@ -837,15 +1536,25 @@
   // frame would fight the user for focus on whatever input they are
   // mid-edit on.
   function renderThresholdsTable() {
-    thresholdsTableBody.innerHTML = customMetricDefinitions.map((definition) => `
+    // definition.idealRangeDegrees/warnRangeDegrees can be null
+    // (footStanceAngle before its first calibration) — rendered as an
+    // empty input with a "n/d" placeholder rather than the string
+    // "null", so it reads as "not set" and is ready to type into.
+    thresholdsTableBody.innerHTML = customMetricDefinitions.map((definition) => {
+      const idealMin = definition.idealRangeDegrees ? definition.idealRangeDegrees[0] : "";
+      const idealMax = definition.idealRangeDegrees ? definition.idealRangeDegrees[1] : "";
+      const warnMin = definition.warnRangeDegrees ? definition.warnRangeDegrees[0] : "";
+      const warnMax = definition.warnRangeDegrees ? definition.warnRangeDegrees[1] : "";
+      return `
       <tr>
         <td>${escapeHtml(definition.name)}</td>
-        <td><input type="number" step="0.1" value="${definition.idealRangeDegrees[0]}" data-metric-id="${definition.id}" data-field="idealMin" /></td>
-        <td><input type="number" step="0.1" value="${definition.idealRangeDegrees[1]}" data-metric-id="${definition.id}" data-field="idealMax" /></td>
-        <td><input type="number" step="0.1" value="${definition.warnRangeDegrees[0]}" data-metric-id="${definition.id}" data-field="warnMin" /></td>
-        <td><input type="number" step="0.1" value="${definition.warnRangeDegrees[1]}" data-metric-id="${definition.id}" data-field="warnMax" /></td>
+        <td><input type="number" step="0.1" value="${idealMin}" placeholder="n/d" data-metric-id="${definition.id}" data-field="idealMin" /></td>
+        <td><input type="number" step="0.1" value="${idealMax}" placeholder="n/d" data-metric-id="${definition.id}" data-field="idealMax" /></td>
+        <td><input type="number" step="0.1" value="${warnMin}" placeholder="n/d" data-metric-id="${definition.id}" data-field="warnMin" /></td>
+        <td><input type="number" step="0.1" value="${warnMax}" placeholder="n/d" data-metric-id="${definition.id}" data-field="warnMax" /></td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
   }
 
   renderThresholdsTable();
@@ -864,10 +1573,18 @@
     if (Number.isNaN(value)) return;
     const definition = customMetricDefinitions.find((d) => d.id === metricId);
     if (!definition) return;
-    if (field === "idealMin") definition.idealRangeDegrees[0] = value;
-    if (field === "idealMax") definition.idealRangeDegrees[1] = value;
-    if (field === "warnMin") definition.warnRangeDegrees[0] = value;
-    if (field === "warnMax") definition.warnRangeDegrees[1] = value;
+    // A metric can start with idealRangeDegrees/warnRangeDegrees ===
+    // null (footStanceAngle — no default range exists yet, see
+    // DEFAULT_POSTURE_METRICS above), so the first typed value has to
+    // create the range array, not index into a null.
+    if (field === "idealMin" || field === "idealMax") {
+      if (!definition.idealRangeDegrees) definition.idealRangeDegrees = [value, value];
+      else definition.idealRangeDegrees[field === "idealMin" ? 0 : 1] = value;
+    }
+    if (field === "warnMin" || field === "warnMax") {
+      if (!definition.warnRangeDegrees) definition.warnRangeDegrees = [value, value];
+      else definition.warnRangeDegrees[field === "warnMin" ? 0 : 1] = value;
+    }
     renderCurrentFrame();
   });
 
@@ -878,6 +1595,13 @@
   // with no value in this frame (a keypoint it needs was not
   // confidently detected here) is left untouched rather than guessed
   // at — capturing "nothing" would be worse than not capturing at all.
+  // footStanceAngle's own default (see DEFAULT_POSTURE_METRICS above)
+  // is not ghiggo-sourced like the other six, but this capture path is
+  // metric-agnostic (it just reads whatever result.id/result.valueDegrees
+  // the current frame produced), so the same ±3°/±12° tolerances apply
+  // to it too — reusing this project's one established capture
+  // convention rather than inventing a second, different one just for
+  // this metric.
   const CAPTURE_IDEAL_TOLERANCE_DEGREES = 3;
   const CAPTURE_WARN_TOLERANCE_DEGREES = 12;
 
@@ -901,12 +1625,7 @@
   });
 
   resetThresholdsBtn.addEventListener("click", () => {
-    customMetricDefinitions = DEFAULT_POSTURE_METRICS.map((definition) => ({
-      id: definition.id,
-      name: definition.name,
-      idealRangeDegrees: [...definition.idealRangeDegrees],
-      warnRangeDegrees: [...definition.warnRangeDegrees]
-    }));
+    customMetricDefinitions = cloneMetricDefinitions(DEFAULT_POSTURE_METRICS);
     renderThresholdsTable();
     renderCurrentFrame();
   });
@@ -946,13 +1665,18 @@
       // from an older version of this page with fewer/renamed metrics
       // should not silently delete whichever metrics it does not
       // mention.
+      // A range is valid if it's either a real [min, max] array or
+      // null (footStanceAngle exported before its first calibration —
+      // see DEFAULT_POSTURE_METRICS above) — anything else (wrong
+      // shape, undefined field) is rejected rather than guessed at.
+      const isValidRange = (value) => value === null || Array.isArray(value);
       imported.forEach((importedDefinition) => {
         const definition = customMetricDefinitions.find((d) => d.id === importedDefinition.id);
-        if (!definition || !Array.isArray(importedDefinition.idealRangeDegrees) || !Array.isArray(importedDefinition.warnRangeDegrees)) {
+        if (!definition || !isValidRange(importedDefinition.idealRangeDegrees) || !isValidRange(importedDefinition.warnRangeDegrees)) {
           return;
         }
-        definition.idealRangeDegrees = [...importedDefinition.idealRangeDegrees];
-        definition.warnRangeDegrees = [...importedDefinition.warnRangeDegrees];
+        definition.idealRangeDegrees = importedDefinition.idealRangeDegrees ? [...importedDefinition.idealRangeDegrees] : null;
+        definition.warnRangeDegrees = importedDefinition.warnRangeDegrees ? [...importedDefinition.warnRangeDegrees] : null;
       });
       renderThresholdsTable();
       renderCurrentFrame();
